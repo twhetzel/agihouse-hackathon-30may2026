@@ -30,6 +30,15 @@ def ground_trait_locally(reported_trait):
 
     # Local mock database of ontology mappings
     ontology_db = {
+        "wheeze/asthma/allergy": {
+            "ontology_id": "MONDO:0004979 | MONDO:0005405 | EFO:0003900",
+            "ontology_label": "asthma | childhood onset asthma | allergic disease",
+            "grounding_type": "ambiguous",
+            "reasons": [
+                "Trait maps to multiple distinct concepts: 'wheeze' (approx. MONDO:0005405), 'asthma' (MONDO:0004979), and 'allergy' (EFO:0003900).",
+                "Ambiguous combined phenotype requires curator decomposition into independent graph edges."
+            ]
+        },
         "childhood wheeze/asthma": {
             "ontology_id": "MONDO:0005405",
             "ontology_label": "childhood onset asthma",

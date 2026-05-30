@@ -1,0 +1,14 @@
+{
+    "source_type": "prepublication_summary_statistics_metadata",
+    "title": "Shared and Distinct Genetic Risk Factors for Childhood Onset and Adult Onset Asthma: Genome- and Transcriptome-wide Studies",
+    "authors": [
+        "Pividori M.",
+        "Schoettler N.",
+        "Nicolae D. L."
+    ],
+    "reported_trait": "childhood asthma",
+    "preprint_or_submission_id": "prepub-scenario-1",
+    "summary_stats_file": "GCST90001234_sumstats.tsv.gz",
+    "cohort": "UK Biobank cohort",
+    "notes": "High-confidence direct match test case with identical title, authors, and summary stats file."
+}
