@@ -1,0 +1,14 @@
+{
+    "source_type": "prepublication_summary_statistics_metadata",
+    "title": "Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma",
+    "authors": [
+        "Pividori M",
+        "Schoettler N",
+        "Nicolae DL"
+    ],
+    "reported_trait": "childhood wheeze/asthma",
+    "preprint_or_submission_id": "prepub-demo-001",
+    "summary_stats_file": "pividori_asthma_child_sumstats.tsv.gz",
+    "cohort": "UK Biobank cohort",
+    "notes": "Early prepublication metadata draft mapping shared childhood/adult asthma risks."
+}
