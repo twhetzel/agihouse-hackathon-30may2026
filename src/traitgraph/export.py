@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 def create_graph_ready_json(prepub_data, match_result, grounding_result):
     """
