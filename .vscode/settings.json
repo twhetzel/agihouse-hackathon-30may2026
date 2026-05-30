@@ -1,0 +1,10 @@
+{
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/src",
+        "/Users/whetzel/git/agihouse-hackathon-30may2026/src"
+    ],
+    "python.autoComplete.extraPaths": [
+        "${workspaceFolder}/src",
+        "/Users/whetzel/git/agihouse-hackathon-30may2026/src"
+    ]
+}

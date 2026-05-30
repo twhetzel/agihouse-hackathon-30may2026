@@ -1,0 +1,60 @@
+{
+    "graph_schema_version": "1.0.0",
+    "entity_id": "traitgraph-node-c2197e49-e3a6-4ca7-82e0-134e8f3014e2",
+    "submitted_metadata": {
+        "source_type": "prepublication_summary_statistics_metadata",
+        "title": "Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma",
+        "authors": [
+            "Pividori M",
+            "Schoettler N",
+            "Nicolae DL"
+        ],
+        "reported_trait": "childhood wheeze/asthma",
+        "preprint_or_submission_id": "prepub-demo-001",
+        "summary_stats_file": "pividori_asthma_child_sumstats.tsv.gz",
+        "cohort": "UK Biobank cohort",
+        "notes": "Early prepublication metadata draft mapping shared childhood/adult asthma risks."
+    },
+    "matched_catalog_record": {
+        "title": "Shared and Distinct Genetic Risk Factors for Childhood Onset and Adult Onset Asthma: Genome- and Transcriptome-wide Studies",
+        "authors": [
+            "Pividori M.",
+            "Schoettler N.",
+            "Nicolae D. L.",
+            "Ober C.",
+            "Im H. K."
+        ],
+        "reported_trait": "childhood asthma",
+        "ontology_id": "MONDO:0005405",
+        "ontology_label": "childhood onset asthma",
+        "publication_id": "PMID:31036433",
+        "catalog_accession": "GCST90001234",
+        "summary_stats_file": "GCST90001234_sumstats.tsv.gz"
+    },
+    "reconciliation": {
+        "confidence_score": 0.5769,
+        "explanation": "Matched catalog study 'GCST90001234' with confidence 0.58. Title Jaccard similarity: 0.69 (shared tokens: {'asthma', 'shared', 'factors', 'onset', 'childhood', 'genetic', 'risk', 'distinct', 'adult'}). Author overlap ratio: 1.00 (matched prepub authors: 3/3). Summary stats file matching score: 0.00.",
+        "is_exact_match": false
+    },
+    "normalized_trait": {
+        "ontology_id": "MONDO:0005405",
+        "ontology_label": "childhood onset asthma",
+        "grounding_type": "approximate",
+        "contains_multiple_concepts": true
+    },
+    "provenance": {
+        "tool_name": "TraitGraph GWAS Reconciler MVP",
+        "tool_version": "0.1.0",
+        "timestamp": "2026-05-30T03:08:27.819587Z",
+        "run_id": "14455e12-9880-4399-bba9-2e1f3b1ea091"
+    },
+    "review_flags": {
+        "manual_review_required": true,
+        "reasons": [
+            "Study match is probable rather than exact (Confidence: 57.69%).",
+            "Study match confidence score is low (< 70%).",
+            "Reported trait contains slash '/' character indicating alternative or joint phenotypes.",
+            "Grounding is approximate for combined wheeze/asthma phenotype."
+        ]
+    }
+}
