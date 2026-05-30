@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Web Dashboard frontend node_modules and builds
+web/node_modules/
+web/dist/
+web/.vite/
+

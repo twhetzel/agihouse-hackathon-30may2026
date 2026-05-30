@@ -211,3 +211,34 @@ The resulting Knowledge Graph payloads are saved under the `outputs/` directory:
 - `outputs/traitgraph_scenario_3_no_match.json` (Scenario 3 payload)
 
 Each output file contains exact submitted metadata, catalog matching results, Jaccard similarities, normalized ontologies, complete provenance run ID/timestamp headers, and structured review flags for curation.
+
+---
+
+## Interactive Web Dashboard
+
+To make curating and auditing these study matches extremely visual and interactive, we've built a high-fidelity React-based curation dashboard under the `web/` folder. It runs entirely locally and imports the pre-generated output graph payloads dynamically!
+
+### 1. Launch the Dashboard
+Navigate into the dashboard folder, install local dependencies, and launch the Vite development engine:
+
+```bash
+# 1. Move to the web folder
+cd web
+
+# 2. Install dependencies (fully local and fast)
+npm install
+
+# 3. Spin up the Vite development server
+npm run dev
+```
+
+### 2. View in the Browser
+Open your browser and navigate to:
+👉 **[http://localhost:5173/](http://localhost:5173/)**
+
+### 3. Key Dashboard Features
+* **Interactive Scenario Selector Tabs**: Toggle in real-time between the four classes of GWAS study matches (Original MVP, Scenario 1: High Confidence, Scenario 2: Ambiguous Trait, Scenario 3: No Catalog Match).
+* **Side-by-Side Metadata Auditing Cards**: Compares raw submitted pre-publication study titles, authors, and stats files against curated, validated catalog records.
+* **Matching & Grounding Gauges**: Visualizes study match confidence scores with color-coded confidence ranges, standard ontology tags (`MONDO:0005405`), and multi-concept indicators.
+* **Curator Review Banner Alerts**: Glowing yellow and red alerts that dynamically surface exact curation action reasons based on the generated review flags.
+* **Graph Node Evidentiary Record Preview**: Collapsible, high-contrast JSON code block displaying the graph-ready ingest payload with an integrated one-click "Copy JSON" utility.
