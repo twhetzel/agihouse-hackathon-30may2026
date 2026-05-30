@@ -74,8 +74,10 @@ To ensure consistent execution using **Python 3** and avoid any legacy system Py
 # 1. Initialize the virtual environment with custom display prompt
 uv venv --prompt traitgraph
 
-# 2. Activate the virtual environment
+# 2. Activate the virtual environment (macOS/Linux)
 source .venv/bin/activate
+# On Windows:
+# .venv\Scripts\activate
 ```
 
 Once activated, your terminal prompt will display **`(traitgraph)`** to indicate the active environment, and your terminal's `python` alias will automatically point to your modern virtual environment's Python 3 engine.
