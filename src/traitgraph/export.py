@@ -67,7 +67,7 @@ def create_graph_ready_json(prepub_data, match_result, grounding_result):
         "provenance": {
             "tool_name": "TraitGraph GWAS Reconciler MVP",
             "tool_version": "0.1.0",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "run_id": str(uuid.uuid4())
         },
         
