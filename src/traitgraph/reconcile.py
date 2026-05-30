@@ -131,7 +131,9 @@ def reconcile_prepub_metadata(prepub_data, catalog_records):
             
             explanation_parts = [f"Matched catalog study '{catalog_accession(record)}' with confidence {confidence:.2%}."]
             if has_title:
-                explanation_parts.append(f"Title Jaccard similarity: {title_sim:.2f} (shared tokens: {clean_tokens(prepub_title).intersection(clean_tokens(catalog_title))}).")
+                shared_tokens = sorted(clean_tokens(prepub_title).intersection(clean_tokens(catalog_title)))
+                shared_tokens_str = "{" + ", ".join(f"'{t}'" for t in shared_tokens) + "}"
+                explanation_parts.append(f"Title Jaccard similarity: {title_sim:.2f} (shared tokens: {shared_tokens_str}).")
             if has_authors:
                 explanation_parts.append(f"Author overlap ratio: {author_sim:.2f} (matched prepub authors: {len(set(map(normalize_author, prepub_authors)).intersection(set(map(normalize_author, catalog_authors))))}/{len(prepub_authors)}).")
             if has_file:
