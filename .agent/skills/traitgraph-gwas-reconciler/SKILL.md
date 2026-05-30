@@ -56,5 +56,5 @@ python3 .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
 ```
 
 ### Outputs
-- Emits graph-ready JSON to [traitgraph_reconciled_asthma_graph.json](file:///Users/whetzel/git/agihouse-hackathon-30may2026/outputs/traitgraph_reconciled_asthma_graph.json)
+- Emits graph-ready JSON to [traitgraph_reconciled_asthma_graph.json](../../../outputs/traitgraph_reconciled_asthma_graph.json)
 - Displays console summary detailing study match similarity scores, normalized trait ontology, and curator review flags.
