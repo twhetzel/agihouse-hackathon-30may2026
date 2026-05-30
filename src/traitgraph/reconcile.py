@@ -94,30 +94,50 @@ def reconcile_prepub_metadata(prepub_data, catalog_records):
     prepub_authors = prepub_data.get("authors", [])
     prepub_file = prepub_data.get("summary_stats_file", "")
     
+    has_title = bool(prepub_title)
+    has_authors = bool(prepub_authors)
+    has_file = bool(prepub_file)
+    
+    # Calculate total weight dynamically based on present pre-publication fields
+    total_weight = (0.4 if has_title else 0.0) + (0.3 if has_authors else 0.0) + (0.3 if has_file else 0.0)
+    if total_weight == 0.0:
+        total_weight = 1.0
+        
     for record in catalog_records:
         catalog_title = record.get("title", "")
         catalog_authors = record.get("authors", [])
         catalog_file = record.get("summary_stats_file", "")
         
-        title_sim = compute_title_similarity(prepub_title, catalog_title)
-        author_sim = compute_author_similarity(prepub_authors, catalog_authors)
-        file_sim = compute_file_similarity(prepub_file, catalog_file)
+        title_sim = compute_title_similarity(prepub_title, catalog_title) if has_title else 0.0
+        author_sim = compute_author_similarity(prepub_authors, catalog_authors) if has_authors else 0.0
+        file_sim = compute_file_similarity(prepub_file, catalog_file) if has_file else 0.0
         
-        # Weighted overall confidence score
-        # 40% Title, 30% Authors, 30% File name matching
-        confidence = (0.4 * title_sim) + (0.3 * author_sim) + (0.3 * file_sim)
+        # Weighted overall confidence score dynamically normalized
+        weighted_score = (
+            (0.4 * title_sim if has_title else 0.0) +
+            (0.3 * author_sim if has_authors else 0.0) +
+            (0.3 * file_sim if has_file else 0.0)
+        )
+        confidence = weighted_score / total_weight
         
         if confidence > best_confidence:
             best_confidence = confidence
             best_record = record
-            is_exact = (title_sim == 1.0 and author_sim == 1.0 and file_sim == 1.0)
-            
-            best_explanation = (
-                f"Matched catalog study '{catalog_accession(record)}' with confidence {confidence:.2f}. "
-                f"Title Jaccard similarity: {title_sim:.2f} (shared tokens: {clean_tokens(prepub_title).intersection(clean_tokens(catalog_title))}). "
-                f"Author overlap ratio: {author_sim:.2f} (matched prepub authors: {len(set(map(normalize_author, prepub_authors)).intersection(set(map(normalize_author, catalog_authors))))}/{len(prepub_authors)}). "
-                f"Summary stats file matching score: {file_sim:.2f}."
+            is_exact = (
+                (not has_title or title_sim == 1.0) and
+                (not has_authors or author_sim == 1.0) and
+                (not has_file or file_sim == 1.0)
             )
+            
+            explanation_parts = [f"Matched catalog study '{catalog_accession(record)}' with confidence {confidence:.2%}."]
+            if has_title:
+                explanation_parts.append(f"Title Jaccard similarity: {title_sim:.2f} (shared tokens: {clean_tokens(prepub_title).intersection(clean_tokens(catalog_title))}).")
+            if has_authors:
+                explanation_parts.append(f"Author overlap ratio: {author_sim:.2f} (matched prepub authors: {len(set(map(normalize_author, prepub_authors)).intersection(set(map(normalize_author, catalog_authors))))}/{len(prepub_authors)}).")
+            if has_file:
+                explanation_parts.append(f"Summary stats file matching score: {file_sim:.2f}.")
+                
+            best_explanation = " ".join(explanation_parts)
             
     # Apply a minimal reconciliation threshold
     if best_confidence < 0.4:
