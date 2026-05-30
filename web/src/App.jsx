@@ -683,7 +683,7 @@ export default function App() {
       </section>
 
       {/* DASHBOARD CORE GRID */}
-      <main style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr', gap: '2rem', alignItems: 'start' }}>
+      <main style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.1fr)', gap: '2rem', alignItems: 'start' }}>
         
         {/* LEFT COLUMN: INTERACTIVE PLAYGROUND EDITOR */}
         <div className="glass-panel" style={{ padding: '1.75rem', position: 'sticky', top: '20px' }}>
@@ -937,7 +937,7 @@ export default function App() {
         </div>
 
         {/* RIGHT COLUMN: LIVE RECONCILIATION & ONTOLOGY OUTPUTS */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative', minWidth: 0 }}>
           
           {/* BEAUTIFUL PROCESSING TRANSITION OVERLAY */}
           {isReconciling && (
@@ -963,140 +963,142 @@ export default function App() {
           )}
 
           {/* study reconciliation outcomes card */}
-          <div className="glass-panel" style={{ padding: '1.75rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>⚖️</span>
-                <h3 style={{ fontSize: '1.2rem', color: '#fff' }}>Study Reconciliation Live Outcomes</h3>
+            <div className="glass-panel" style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.15rem' }}>⚖️</span>
+                  <h3 style={{ fontSize: '1.1rem', color: '#fff', fontWeight: '600' }}>Reconciliation Outcomes</h3>
+                </div>
+                <span className="badge" style={{ 
+                  background: confidenceScore >= 0.70 ? 'rgba(16, 185, 129, 0.1)' : confidenceScore >= 0.40 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                  color: getConfidenceColor(confidenceScore),
+                  border: `1px solid ${getConfidenceColor(confidenceScore)}`,
+                  fontSize: '0.7rem'
+                }}>
+                  {confidenceScore >= 0.70 ? 'High' : confidenceScore >= 0.40 ? 'Probable' : 'No Match'}
+                </span>
               </div>
-              <span className="badge" style={{ 
-                background: confidenceScore >= 0.70 ? 'rgba(16, 185, 129, 0.1)' : confidenceScore >= 0.40 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                color: getConfidenceColor(confidenceScore),
-                border: `1px solid ${getConfidenceColor(confidenceScore)}`
-              }}>
-                {confidenceScore >= 0.70 ? 'High Confidence' : confidenceScore >= 0.40 ? 'Probable Match' : 'No Confident Match'}
-              </span>
+
+              {matched_catalog_record ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                  
+                  {/* Live Jaccard confidence score meter */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                      <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Confidence</span>
+                      <span style={{ fontSize: '1.05rem', fontWeight: '700', color: getConfidenceColor(confidenceScore) }}>{confidencePercent}</span>
+                    </div>
+                    <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ width: confidencePercent, height: '100%', background: getConfidenceColor(confidenceScore), transition: 'width 0.3s ease-in-out', boxShadow: `0 0 10px ${getConfidenceColor(confidenceScore)}` }}></div>
+                    </div>
+                  </div>
+
+                  {/* Score weights list */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem', background: 'rgba(0,0,0,0.15)', padding: '0.5rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)', textAlign: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Title (40%)</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#fff', marginTop: '0.1rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.title_similarity : 0) * 100).toFixed(0)}%</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Auth (30%)</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#fff', marginTop: '0.1rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.author_similarity : 0) * 100).toFixed(0)}%</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>File (30%)</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#fff', marginTop: '0.1rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.file_similarity : 0) * 100).toFixed(0)}%</div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Best Reconciled Study</span>
+                    <p style={{ fontSize: '0.95rem', marginTop: '0.2rem', color: '#fff', fontWeight: '500', lineHeight: '1.3' }}>
+                      "{matched_catalog_record.title}"
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Accession ID</span>
+                      <p style={{ marginTop: '0.15rem', fontSize: '0.95rem', fontWeight: '700', color: 'var(--accent-primary)' }}>
+                        {matched_catalog_record.catalog_accession}
+                      </p>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>PMID</span>
+                      <p style={{ marginTop: '0.15rem', fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                        {matched_catalog_record.publication_id}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Explanation</span>
+                    <p style={{ marginTop: '0.15rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.3', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.6rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                      {reconciliation?.explanation}
+                    </p>
+                  </div>
+
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '2rem' }}>❌</span>
+                  <h4 style={{ color: '#ef4444', fontWeight: '600', fontSize: '0.95rem' }}>No Confident Match</h4>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.3' }}>
+                    Overall Jaccard metric is below the 40% threshold ({confidencePercent}). Ingestion blocked.
+                  </p>
+                </div>
+              )}
             </div>
 
-            {matched_catalog_record ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+            {/* ontology grounding outcomes card */}
+            <div className="glass-panel" style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.15rem' }}>🧬</span>
+                  <h3 style={{ fontSize: '1.1rem', color: '#fff', fontWeight: '600' }}>Grounding Outcomes</h3>
+                </div>
+                <span className={`badge ${getGroundingBadgeClass(normalized_trait?.grounding_type)}`} style={{ fontSize: '0.7rem' }}>
+                  {normalized_trait?.grounding_type || 'FAILED'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
                 
-                {/* Live Jaccard confidence score meter */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Reconciliation Confidence</span>
-                    <span style={{ fontSize: '1.15rem', fontWeight: '700', color: getConfidenceColor(confidenceScore) }}>{confidencePercent}</span>
-                  </div>
-                  <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ width: confidencePercent, height: '100%', background: getConfidenceColor(confidenceScore), transition: 'width 0.3s ease-in-out', boxShadow: `0 0 10px ${getConfidenceColor(confidenceScore)}` }}></div>
-                  </div>
-                </div>
-
-                {/* Score weights list */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', background: 'rgba(0,0,0,0.15)', padding: '0.6rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)', textAlign: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '0.75rem' }}>
                   <div>
-                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Title Jaccard (40%)</div>
-                    <div style={{ fontSize: '1rem', fontWeight: '700', color: '#fff', marginTop: '0.15rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.title_similarity : 0) * 100).toFixed(0)}%</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Author Overlap (30%)</div>
-                    <div style={{ fontSize: '1rem', fontWeight: '700', color: '#fff', marginTop: '0.15rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.author_similarity : 0) * 100).toFixed(0)}%</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>File Overlap (30%)</div>
-                    <div style={{ fontSize: '1rem', fontWeight: '700', color: '#fff', marginTop: '0.15rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.file_similarity : 0) * 100).toFixed(0)}%</div>
-                  </div>
-                </div>
-
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Best Reconciled Study</span>
-                  <p style={{ fontSize: '1.05rem', marginTop: '0.25rem', color: '#fff', fontWeight: '500', lineHeight: '1.4' }}>
-                    "{matched_catalog_record.title}"
-                  </p>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>GWAS Accession ID</span>
-                    <p style={{ marginTop: '0.25rem', fontSize: '1.05rem', fontWeight: '700', color: 'var(--accent-primary)' }}>
-                      {matched_catalog_record.catalog_accession}
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Standardized Label</span>
+                    <p style={{ marginTop: '0.2rem', fontSize: '0.95rem', fontWeight: '600', color: '#fff', lineHeight: '1.3' }}>
+                      {normalized_trait?.ontology_label || 'FAILED MAPPING'}
                     </p>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Publication PMID</span>
-                    <p style={{ marginTop: '0.25rem', fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-primary)' }}>
-                      {matched_catalog_record.publication_id}
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Ontology ID</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
+                      <span style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--accent-info)', fontFamily: 'var(--font-mono)' }}>
+                        {normalized_trait?.ontology_id || 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Multi-Concept Flag</span>
+                    <p style={{ marginTop: '0.15rem', fontSize: '0.85rem', fontWeight: '600', color: normalized_trait?.contains_multiple_concepts ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
+                      {normalized_trait?.contains_multiple_concepts ? 'YES [Compound] ⚠️' : 'NO [Single] ✅'}
+                    </p>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Curation Action</span>
+                    <p style={{ marginTop: '0.15rem', fontSize: '0.85rem', fontWeight: '600', color: review_flags?.manual_review_required ? 'var(--accent-warning)' : 'var(--accent-success)' }}>
+                      {review_flags?.manual_review_required ? 'Manual Review' : 'Auto Ingestion'}
                     </p>
                   </div>
                 </div>
 
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Reconciliation Explanation</span>
-                  <p style={{ marginTop: '0.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4', background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                    {reconciliation?.explanation}
-                  </p>
-                </div>
-
               </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '2.5rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '2.5rem' }}>❌</span>
-                <h4 style={{ color: '#ef4444', fontWeight: '600' }}>No Confident Match Reconciled</h4>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', maxWidth: '380px', lineHeight: '1.4' }}>
-                  Overall calculated Jaccard metric is below the 40% threshold ({confidencePercent}). Automatic merge blocked to prevent duplicate entries and database pollution.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* ontology grounding outcomes card */}
-          <div className="glass-panel" style={{ padding: '1.75rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>🧬</span>
-                <h3 style={{ fontSize: '1.2rem', color: '#fff' }}>Ontology Grounding Live Outcomes</h3>
-              </div>
-              <span className={`badge ${getGroundingBadgeClass(normalized_trait?.grounding_type)}`}>
-                {normalized_trait?.grounding_type || 'FAILED'} Grounding
-              </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1rem' }}>
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Standardized Ontology Label</span>
-                  <p style={{ marginTop: '0.25rem', fontSize: '1.1rem', fontWeight: '600', color: '#fff' }}>
-                    {normalized_trait?.ontology_label || 'FAILED MAPPING'}
-                  </p>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Ontology ID</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
-                    <span style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--accent-info)', fontFamily: 'var(--font-mono)' }}>
-                      {normalized_trait?.ontology_id || 'N/A'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Multi-Concept Flag</span>
-                  <p style={{ marginTop: '0.25rem', fontSize: '0.95rem', fontWeight: '600', color: normalized_trait?.contains_multiple_concepts ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
-                    {normalized_trait?.contains_multiple_concepts ? 'YES [Compound Phenotype] ⚠️' : 'NO [Single Concept] ✅'}
-                  </p>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Curation Action Required</span>
-                  <p style={{ marginTop: '0.25rem', fontSize: '0.95rem', fontWeight: '600', color: review_flags?.manual_review_required ? 'var(--accent-warning)' : 'var(--accent-success)' }}>
-                    {review_flags?.manual_review_required ? 'YES [Manual Review]' : 'NO [Auto Ingestion]'}
-                  </p>
-                </div>
-              </div>
-
-            </div>
-          </div>
 
           {/* review flags action card */}
           <div className="glass-panel" style={{ 
@@ -1262,28 +1264,38 @@ export default function App() {
 
                 <button
                   onClick={handleExecuteAiReport}
-                  disabled={isAiRunning}
+                  disabled={isAiRunning || isDirty || isReconciling}
                   style={{
                     padding: '0.75rem 1.5rem',
                     fontSize: '0.95rem',
                     fontWeight: '600',
-                    cursor: 'pointer',
-                    background: 'linear-gradient(135deg, #7c3aed, #db2777)',
-                    color: '#fff',
-                    border: '1px solid rgba(139,92,246,0.4)',
+                    cursor: (isAiRunning || isDirty || isReconciling) ? 'not-allowed' : 'pointer',
+                    background: (isDirty || isReconciling) ? 'rgba(255,255,255,0.03)' : 'linear-gradient(135deg, #7c3aed, #db2777)',
+                    color: (isDirty || isReconciling) ? 'var(--text-muted)' : '#fff',
+                    border: (isDirty || isReconciling) ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(139,92,246,0.4)',
                     borderRadius: 'var(--radius-md)',
-                    boxShadow: '0 0 15px rgba(139, 92, 246, 0.3)',
+                    boxShadow: (isDirty || isReconciling) ? 'none' : '0 0 15px rgba(139, 92, 246, 0.3)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
                     transition: 'var(--transition-smooth)',
-                    opacity: 1
+                    opacity: (isDirty || isReconciling) ? 0.5 : 1
                   }}
                 >
                   {isAiRunning ? (
                     <>
                       <svg style={{ animation: 'spin 1s linear infinite' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
                       Gemini is reviewing study alignment...
+                    </>
+                  ) : isReconciling ? (
+                    <>
+                      <span>⏳</span>
+                      Waiting for Local Reconciliation...
+                    </>
+                  ) : isDirty ? (
+                    <>
+                      <span>⚠️</span>
+                      Reconciliation Outdated (Run Engine First)
                     </>
                   ) : (
                     <>
@@ -1334,9 +1346,11 @@ export default function App() {
               </button>
             </div>
 
-            <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ flex: 1, position: 'relative', minWidth: 0, maxWidth: '100%' }}>
               <pre style={{
                 maxHeight: '380px',
+                maxWidth: '100%',
+                minWidth: 0,
                 overflow: 'auto',
                 padding: '1rem',
                 background: 'rgba(0, 0, 0, 0.3)',
@@ -1351,7 +1365,7 @@ export default function App() {
               </pre>
             </div>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               <span>Live Run UUID: {provenance?.run_id}</span>
               <span>Timestamp: {provenance?.timestamp}</span>
             </div>
