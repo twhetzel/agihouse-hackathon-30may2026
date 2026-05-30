@@ -3,14 +3,14 @@ def ground_trait_locally(reported_trait):
     Perform local, deterministic ontology grounding of reported trait strings to mock EFO IDs.
     Flags compound concepts and lists reasons for manual review if grounding is approximate or synonym-based.
     """
-    if not reported_trait:
+    if not reported_trait or not isinstance(reported_trait, str):
         return {
             "ontology_id": None,
             "ontology_label": None,
             "grounding_type": "failed",
             "contains_multiple_concepts": False,
             "manual_review_required": True,
-            "review_reasons": ["Reported trait is empty or missing."]
+            "review_reasons": ["Reported trait is empty, missing, or not a string."]
         }
         
     normalized = reported_trait.lower().strip()
