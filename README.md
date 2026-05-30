@@ -10,31 +10,37 @@ This repository implements the **first local, deterministic MVP** designed speci
 
 The system consists of three modular pipelines:
 
+![TraitGraph Architecture Diagram](resources/architecture_diagram.png)
+
+<details>
+<summary>🔍 Click to view editable Mermaid Diagram Source</summary>
+
+```mermaid
+graph TD
+    subgraph "Pipeline Inputs"
+        PrePub[Pre-publication Metadata]
+        Catalog[Mock Curated Catalog]
+    end
+
+    subgraph "TraitGraph Core Engines"
+        Reconcile[1. Study Reconciliation Engine]
+        Grounding[2. Ontology Grounding Engine]
+        Export[3. Graph JSON Exporter]
+    end
+
+    subgraph "Pipeline Outputs"
+        GraphReady[Reconciled Graph-Ready Node]
+    end
+
+    PrePub --> Reconcile
+    Catalog --> Reconcile
+    PrePub -.-> Grounding
+    Reconcile --> Export
+    Grounding --> Export
+    Export --> GraphReady
 ```
-                  ┌──────────────────────────────────────────────┐
-                  │ examples/traitgraph_messy_asthma_prepub.json │
-                  └──────────────────────┬───────────────────────┘
-                                         │
-                                         ▼
-                            ┌────────────────────────┐
-                            │      reconcile.py      │ ◄─── resources/traitgraph_mock_catalog_records.json
-                            └────────────┬───────────┘
-                                         │
-                                         ▼
-                            ┌────────────────────────┐
-                            │  ontology_grounding.py │
-                            └────────────┬───────────┘
-                                         │
-                                         ▼
-                            ┌────────────────────────┐
-                            │       export.py        │
-                            └────────────┬───────────┘
-                                         │
-                                         ▼
-                  ┌──────────────────────────────────────────────┐
-                  │ outputs/traitgraph_reconciled_asthma_graph.j │
-                  └──────────────────────────────────────────────┘
-```
+
+</details>
 
 1. **Reconciliation Engine (`src/traitgraph/reconcile.py`)**:
    - Calculates **Jaccard Title Similarity** by tokenizing study titles (removing common stopwords).
@@ -60,13 +66,33 @@ The system consists of three modular pipelines:
 - Python 3.6+
 - Zero external package dependencies (uses built-in standard library).
 
+### Environment Setup (Recommended)
+
+To ensure consistent execution using **Python 3** and avoid any legacy system Python conflicts, you can set up a local virtual environment using **`uv`** with a custom terminal prompt display name:
+
+```bash
+# 1. Initialize the virtual environment with custom display prompt
+uv venv --prompt traitgraph
+
+# 2. Activate the virtual environment
+source .venv/bin/activate
+```
+
+Once activated, your terminal prompt will display **`(traitgraph)`** to indicate the active environment, and your terminal's `python` alias will automatically point to your modern virtual environment's Python 3 engine.
+
 ### 1. Run the Reconciliation Pipeline
 
 Execute the MVP driver wrapper script to reconcile the childhood asthma example dataset against the mock catalog:
 
-```bash
-python3 .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
-```
+* **Using the activated `uv` virtual environment (or standard python3):**
+  ```bash
+  python .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
+  ```
+
+* **Or directly running with `uv run`:**
+  ```bash
+  uv run .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
+  ```
 
 ### 2. Expected Console Output
 
