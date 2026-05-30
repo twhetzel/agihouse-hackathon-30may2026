@@ -11,8 +11,7 @@ export default defineConfig({
   server: {
     fs: {
       allow: [
-        path.resolve(__dirname, '../resources'),
-        path.resolve(__dirname, '../examples')
+        path.resolve(__dirname, '..')
       ]
     }
   }

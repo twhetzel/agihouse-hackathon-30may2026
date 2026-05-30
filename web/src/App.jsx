@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 // Import RAW inputs and resources
 import mockCatalog from '../../resources/traitgraph_mock_catalog_records.json';
@@ -407,6 +407,18 @@ export default function App() {
   const [isReconciling, setIsReconciling] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
+  // TIMEOUT REF FOR RECONCILER PIPELINE
+  const reconciliationTimeoutRef = useRef(null);
+
+  // Clean up any pending timeouts on component unmount
+  useEffect(() => {
+    return () => {
+      if (reconciliationTimeoutRef.current) {
+        clearTimeout(reconciliationTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Load preset metadata into input states AND immediately trigger a clean compile
   useEffect(() => {
     const preset = presets.find(p => p.id === selectedPresetId);
@@ -445,8 +457,12 @@ export default function App() {
   const handleRunReconciler = () => {
     setIsReconciling(true);
     
+    if (reconciliationTimeoutRef.current) {
+      clearTimeout(reconciliationTimeoutRef.current);
+    }
+    
     // Simulate high-performance metadata reconciliation pipeline processing
-    setTimeout(() => {
+    reconciliationTimeoutRef.current = setTimeout(() => {
       const finalGraph = runEngineCalculations(
         title,
         reportedTrait,
@@ -460,6 +476,7 @@ export default function App() {
       setCompiledGraph(finalGraph);
       setIsReconciling(false);
       setIsDirty(false);
+      reconciliationTimeoutRef.current = null;
     }, 850);
   };
 
