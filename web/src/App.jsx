@@ -463,11 +463,46 @@ export default function App() {
     }, 850);
   };
 
+  const fallbackCopyText = (text) => {
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        console.error("Fallback copy command was unsuccessful");
+      }
+    } catch (err) {
+      console.error("Fallback copy failed: ", err);
+    }
+  };
+
   const copyToClipboard = () => {
     if (!compiledGraph) return;
-    navigator.clipboard.writeText(JSON.stringify(compiledGraph, null, 4));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    const text = JSON.stringify(compiledGraph, null, 4);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch((err) => {
+          console.error("Failed to copy text with Clipboard API: ", err);
+          fallbackCopyText(text);
+        });
+    } else {
+      fallbackCopyText(text);
+    }
   };
 
   const getGroundingBadgeClass = (type) => {
