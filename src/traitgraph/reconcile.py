@@ -58,9 +58,9 @@ def compute_file_similarity(file_prepub, file_catalog):
     if file_prepub == file_catalog:
         return 1.0
     
-    # Extract base names (excluding extensions like .tsv, .gz, .csv)
-    base_prepub = re.split(r"\.tsv|\.csv|\.gz|\.txt", file_prepub)[0]
-    base_catalog = re.split(r"\.tsv|\.csv|\.gz|\.txt", file_catalog)[0]
+    # Extract base names (excluding extensions like .tsv, .gz, .csv from the end)
+    base_prepub = re.sub(r"(\.tsv|\.csv|\.gz|\.txt)+$", "", file_prepub)
+    base_catalog = re.sub(r"(\.tsv|\.csv|\.gz|\.txt)+$", "", file_catalog)
     
     tokens_prepub = set(re.findall(r"\b\w+\b", base_prepub))
     tokens_catalog = set(re.findall(r"\b\w+\b", base_catalog))
