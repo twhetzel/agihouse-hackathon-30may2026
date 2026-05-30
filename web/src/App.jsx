@@ -409,7 +409,7 @@ export default function App() {
   const [isDirty, setIsDirty] = useState(false);
 
   // GEMINI API CURATION STATES
-  const [apiKey] = useState(() => {
+  const [apiKey, setApiKey] = useState(() => {
     const envKey = import.meta.env.VITE_GEMINI_API_KEY || '';
     if (envKey && envKey !== 'your_gemini_api_key_here') {
       return envKey;
@@ -1217,9 +1217,45 @@ export default function App() {
                     Generate dynamic, AI-powered semantic validations and concept decompositions using Gemini 2.5 Flash.
                   </p>
                 </div>
-                
+                 {(!apiKey || apiKey === 'your_gemini_api_key_here') && (
+                  <div style={{
+                    width: '100%',
+                    maxWidth: '380px',
+                    background: 'rgba(255,255,255,0.01)',
+                    border: '1px solid rgba(139, 92, 246, 0.15)',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    textAlign: 'left',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+                  }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                      🔑 Enter Gemini API Key
+                    </label>
+                    <input
+                      type="password"
+                      value={apiKey === 'your_gemini_api_key_here' ? '' : apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="AIzaSy..."
+                      style={{
+                        width: '100%',
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid var(--border-glass)',
+                        borderRadius: '6px',
+                        padding: '0.5rem 0.75rem',
+                        fontSize: '0.85rem',
+                        color: '#fff',
+                        outline: 'none',
+                        transition: 'border 0.2s'
+                      }}
+                    />
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: '0.5rem', lineHeight: '1.3' }}>
+                      Key will be kept in React state memory. To persist permanently, write it to the git-ignored <code style={{ color: 'var(--accent-info)' }}>web/.env.local</code> file!
+                    </p>
+                  </div>
+                )}
+
                 {aiError && (
-                  <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--accent-danger)', borderRadius: '6px', padding: '0.75rem 1rem', color: '#fca5a5', fontSize: '0.85rem', maxWidth: '420px', lineHeight: '1.4' }}>
+                  <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--accent-danger)', borderRadius: '6px', padding: '0.75rem 1rem', color: '#fca5a5', fontSize: '0.85rem', maxWidth: '420px', lineHeight: '1.4', textAlign: 'left' }}>
                     ⚠️ {aiError}
                   </div>
                 )}
