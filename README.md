@@ -84,131 +84,130 @@ Once activated, your terminal prompt will display **`(traitgraph)`** to indicate
 
 ### 1. Run the Reconciliation Pipeline
 
-Execute the MVP driver wrapper script to reconcile the childhood asthma example dataset against the mock catalog:
+Execute the MVP driver wrapper script to run all four test and demo scenarios against the mock catalog:
 
 * **Using the activated `uv` virtual environment (or standard python3):**
   ```bash
-  python .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
+  python3 .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
   ```
 
 * **Or directly running with `uv run`:**
   ```bash
-  uv run .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
+  uv run python3 .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
   ```
 
 ### 2. Expected Console Output
 
-On success, a gorgeous CLI dashboard will render containing study metrics and alert flags:
+On success, a gorgeous multi-scenario CLI dashboard will render, culminating in a comparison table and granular scenario drilldowns:
 
 ```
-======================================================================
-      TRAITGRAPH GWAS RECONCILER - HACKATHON MVP DEMO DRIVER
-======================================================================
-[+] Loading pre-publication GWAS metadata: traitgraph_messy_asthma_prepub.json
+================================================================================
+        TRAITGRAPH GWAS RECONCILER - HACKATHON MVP DEMO DRIVER
+================================================================================
 [+] Loading mock curated GWAS Catalog records: traitgraph_mock_catalog_records.json
-----------------------------------------------------------------------
-Input Title : 'Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma'
-Input Trait : 'childhood wheeze/asthma'
-Input Auth  : ['Pividori M', 'Schoettler N', 'Nicolae DL']
-----------------------------------------------------------------------
-[*] Running Study Reconciliation Engine...
-[*] Running Ontology Grounding Engine...
-[*] Compiling Graph-Ready Evidentiary Record...
-[+] Successfully wrote output graph node!
-    Path: /Users/whetzel/git/agihouse-hackathon-30may2026/outputs/traitgraph_reconciled_asthma_graph.json
-======================================================================
-                    DEMO EXECUTION DASHBOARD
-======================================================================
-🏆 MATCHED STUDY     : GCST90001234 (PMID:31036433)
-   Matched Title    : 'Shared and Distinct Genetic Risk Factors for Childhood Onset and Adult Onset Asthma: Genome- and Transcriptome-wide Studies'
-   Match Confidence : 57.69% (Probable Match)
-   Match Explanation: Matched catalog study 'GCST90001234' with confidence 0.58. Title Jaccard similarity: 0.69 (shared tokens: {'childhood', 'distinct', 'factors', 'asthma', 'risk', 'adult', 'shared', 'genetic', 'onset'}). Author overlap ratio: 1.00 (matched prepub authors: 3/3). Summary stats file matching score: 0.00.
-----------------------------------------------------------------------
-🧬 GROUNDED ONTOLOGY : MONDO:0005405 (childhood onset asthma)
-   Grounding Type   : APPROXIMATE
-   Multi-concept    : True
-----------------------------------------------------------------------
-⚠️  CURATOR ACTION REQUIRED: YES [MANUAL REVIEW REQUIRED]
-    1. Study match is probable rather than exact (Confidence: 57.69%).
-    2. Study match confidence score is low (< 70%).
-    3. Reported trait contains slash '/' character indicating alternative or joint phenotypes.
-    4. Grounding is approximate for combined wheeze/asthma phenotype.
-----------------------------------------------------------------------
-📝 RUN PROVENANCE    :
-   Tool Name        : TraitGraph GWAS Reconciler MVP
-   Run Timestamp    : 2026-05-30T03:06:19.627394Z
-   Execution UUID   : cf130316-9967-4791-adbc-b9ed9ae7417b
-======================================================================
-               MVP DEMO CONCLUDED SUCCESSFULLY
-======================================================================
+
+--------------------------------------------------------------------------------
+▶ RUNNING ORIGINAL MVP DEMO
+  Description : Childhood wheeze/asthma with probable study match and approximate grounding
+  Input Title : 'Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma'
+  Input Trait : 'childhood wheeze/asthma'
+  Input Auth  : ['Pividori M', 'Schoettler N', 'Nicolae DL']
+--------------------------------------------------------------------------------
+[+] Output written to: outputs/traitgraph_reconciled_asthma_graph.json
+
+--------------------------------------------------------------------------------
+▶ RUNNING SCENARIO 1: HIGH-CONFIDENCE MATCH
+  Description : Childhood asthma with identical title/authors/stats-file (100% study match)
+  Input Title : 'Shared and Distinct Genetic Risk Factors for Childhood Onset and Adult Onset Asthma: Genome- and Transcriptome-wide Studies'
+  Input Trait : 'childhood asthma'
+  Input Auth  : ['Pividori M.', 'Schoettler N.', 'Nicolae D. L.']
+--------------------------------------------------------------------------------
+[+] Output written to: outputs/traitgraph_scenario_1_high_confidence.json
+
+--------------------------------------------------------------------------------
+▶ RUNNING SCENARIO 2: AMBIGUOUS TRAIT MATCH
+  Description : wheeze/asthma/allergy mapping to multiple ontology concepts (triggers manual review)
+  Input Title : 'Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma'
+  Input Trait : 'wheeze/asthma/allergy'
+  Input Auth  : ['Pividori M', 'Schoettler N', 'Nicolae DL']
+--------------------------------------------------------------------------------
+[+] Output written to: outputs/traitgraph_scenario_2_ambiguous_trait.json
+
+--------------------------------------------------------------------------------
+▶ RUNNING SCENARIO 3: NO CONFIDENT CATALOG MATCH
+  Description : Similar title but completely different cohort/authors (shows system does not over-match)
+  Input Title : 'Genetic risk factors for childhood-onset and adult-onset asthma in a cohort of Latin American individuals'
+  Input Trait : 'asthma'
+  Input Auth  : ['Gomez A', 'Martinez B', 'Silva C']
+--------------------------------------------------------------------------------
+[+] Output written to: outputs/traitgraph_scenario_3_no_match.json
+
+================================================================================
+                    FINAL MULTI-SCENARIO METRIC COMPARISON
+================================================================================
+╔══════════════════════════════════╤════════════════════════╤════════════════╤══════════╤════════╗
+║ Scenario                         │ Reported Trait         │ Matched Study  │ Confidence │ Review? ║
+╠══════════════════════════════════╪════════════════════════╪════════════════╪══════════╪════════╣
+║ ORIGINAL MVP DEMO                │ childhood wheeze/asthm │ GCST90001234 ( │ 57.69%   │ YES ⚠️ ║
+║ SCENARIO 1: HIGH-CONFIDENCE MATC │ childhood asthma       │ GCST90001234 ( │ 100.00%  │ YES ⚠️ ║
+║ SCENARIO 2: AMBIGUOUS TRAIT MATC │ wheeze/asthma/allergy  │ GCST90001234 ( │ 57.69%   │ YES ⚠️ ║
+║ SCENARIO 3: NO CONFIDENT CATALOG │ asthma                 │ NONE           │ 0.00%    │ YES ⚠️ ║
+╚══════════════════════════════════╧════════════════════════╧════════════════╧══════════╧════════╝
+
+================================================================================
+                       SCENARIO DRILLDOWN ANALYSIS
+================================================================================
+
+★ ORIGINAL MVP DEMO
+  • Reported Phenotype : 'childhood wheeze/asthma'
+  • Matched Accession  : GCST90001234 (PMID:31036433) (Confidence: 57.69%)
+  • Grounded Ontology  : MONDO:0005405 (APPROXIMATE)
+  • Manual Review Req. : YES ⚠️
+  • Trigger Reasons    :
+    - Study match is probable rather than exact (Confidence: 57.69%).
+    - Study match confidence score is low (< 70%).
+    - Reported trait contains slash '/' character indicating alternative or joint phenotypes.
+    - Grounding is approximate for combined wheeze/asthma phenotype.
+
+★ SCENARIO 1: HIGH-CONFIDENCE MATCH
+  • Reported Phenotype : 'childhood asthma'
+  • Matched Accession  : GCST90001234 (PMID:31036433) (Confidence: 100.00%)
+  • Grounded Ontology  : MONDO:0005405 (SYNONYM)
+  • Manual Review Req. : YES ⚠️
+  • Trigger Reasons    :
+    - Grounding is synonym-based (childhood asthma normalized to childhood onset asthma).
+
+★ SCENARIO 2: AMBIGUOUS TRAIT MATCH
+  • Reported Phenotype : 'wheeze/asthma/allergy'
+  • Matched Accession  : GCST90001234 (PMID:31036433) (Confidence: 57.69%)
+  • Grounded Ontology  : MONDO:0004979 | MONDO:0005405 | EFO:0003900 (AMBIGUOUS)
+  • Manual Review Req. : YES ⚠️
+  • Trigger Reasons    :
+    - Study match is probable rather than exact (Confidence: 57.69%).
+    - Study match confidence score is low (< 70%).
+    - Reported trait contains slash '/' character indicating alternative or joint phenotypes.
+    - Trait maps to multiple distinct concepts: 'wheeze' (approx. MONDO:0005405), 'asthma' (MONDO:0004979), and 'allergy' (EFO:0003900).
+    - Ambiguous combined phenotype requires curator decomposition into independent graph edges.
+
+★ SCENARIO 3: NO CONFIDENT CATALOG MATCH
+  • Reported Phenotype : 'asthma'
+  • Matched Accession  : NONE (Confidence: 0.00%)
+  • Grounded Ontology  : MONDO:0004979 (EXACT)
+  • Manual Review Req. : YES ⚠️
+  • Trigger Reasons    :
+    - No matching record found in mock catalog.
+
+================================================================================
+               MVP DEMO CONCLUDED SUCCESSFULLY WITH ALL SCENARIOS
+================================================================================
 ```
 
-### 3. Review the Exported Output Graph
+### 3. Review the Exported Output Graph Files
 
-The resulting Knowledge Graph payload is saved at:
-`outputs/traitgraph_reconciled_asthma_graph.json`
+The resulting Knowledge Graph payloads are saved under the `outputs/` directory:
+- `outputs/traitgraph_reconciled_asthma_graph.json` (Original MVP Demo payload)
+- `outputs/traitgraph_scenario_1_high_confidence.json` (Scenario 1 payload)
+- `outputs/traitgraph_scenario_2_ambiguous_trait.json` (Scenario 2 payload)
+- `outputs/traitgraph_scenario_3_no_match.json` (Scenario 3 payload)
 
-It conforms to downstream graph ingest schemas, including a dedicated `review_flags` block:
-
-```json
-{
-    "graph_schema_version": "1.0.0",
-    "entity_id": "traitgraph-node-f07ab92a-6bdc-4931-80d1-047176ead903",
-    "submitted_metadata": {
-        "source_type": "prepublication_summary_statistics_metadata",
-        "title": "Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma",
-        "authors": [
-            "Pividori M",
-            "Schoettler N",
-            "Nicolae DL"
-        ],
-        "reported_trait": "childhood wheeze/asthma",
-        "preprint_or_submission_id": "prepub-demo-001",
-        "summary_stats_file": "pividori_asthma_child_sumstats.tsv.gz",
-        "cohort": "UK Biobank cohort",
-        "notes": "Early prepublication metadata draft mapping shared childhood/adult asthma risks."
-    },
-    "matched_catalog_record": {
-        "title": "Shared and Distinct Genetic Risk Factors for Childhood Onset and Adult Onset Asthma: Genome- and Transcriptome-wide Studies",
-        "authors": [
-            "Pividori M.",
-            "Schoettler N.",
-            "Nicolae D. L.",
-            "Ober C.",
-            "Im H. K."
-        ],
-        "reported_trait": "childhood asthma",
-        "ontology_id": "MONDO:0005405",
-        "ontology_label": "childhood onset asthma",
-        "publication_id": "PMID:31036433",
-        "catalog_accession": "GCST90001234",
-        "summary_stats_file": "GCST90001234_sumstats.tsv.gz"
-    },
-    "reconciliation": {
-        "confidence_score": 0.5769,
-        "explanation": "Matched catalog study 'GCST90001234' with confidence 0.58. Title Jaccard similarity: 0.69 (shared tokens: {'childhood', 'distinct', 'factors', 'asthma', 'risk', 'adult', 'shared', 'genetic', 'onset'}). Author overlap ratio: 1.00 (matched prepub authors: 3/3). Summary stats file matching score: 0.00.",
-        "is_exact_match": false
-    },
-    "normalized_trait": {
-        "ontology_id": "MONDO:0005405",
-        "ontology_label": "childhood onset asthma",
-        "grounding_type": "approximate",
-        "contains_multiple_concepts": true
-    },
-    "provenance": {
-        "tool_name": "TraitGraph GWAS Reconciler MVP",
-        "tool_version": "0.1.0",
-        "timestamp": "2026-05-30T03:06:19.627394Z",
-        "run_id": "cf130316-9967-4791-adbc-b9ed9ae7417b"
-    },
-    "review_flags": {
-        "manual_review_required": true,
-        "reasons": [
-            "Study match is probable rather than exact (Confidence: 57.69%).",
-            "Study match confidence score is low (< 70%).",
-            "Reported trait contains slash '/' character indicating alternative or joint phenotypes.",
-            "Grounding is approximate for combined wheeze/asthma phenotype."
-        ]
-    }
-}
-```
+Each output file contains exact submitted metadata, catalog matching results, Jaccard similarities, normalized ontologies, complete provenance run ID/timestamp headers, and structured review flags for curation.

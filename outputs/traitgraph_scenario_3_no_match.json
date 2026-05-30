@@ -1,0 +1,42 @@
+{
+    "graph_schema_version": "1.0.0",
+    "entity_id": "traitgraph-node-91da442f-5cf4-4b7c-800e-208ade9e9a54",
+    "submitted_metadata": {
+        "source_type": "prepublication_summary_statistics_metadata",
+        "title": "Genetic risk factors for childhood-onset and adult-onset asthma in a cohort of Latin American individuals",
+        "authors": [
+            "Gomez A",
+            "Martinez B",
+            "Silva C"
+        ],
+        "reported_trait": "asthma",
+        "preprint_or_submission_id": "prepub-scenario-3",
+        "summary_stats_file": "latin_america_asthma_sumstats.tsv",
+        "cohort": "Latin American cohort",
+        "notes": "No confident match test case with similar title terms but different cohort, different authors, and different summary stats file."
+    },
+    "matched_catalog_record": null,
+    "reconciliation": {
+        "confidence_score": 0.0,
+        "explanation": "No catalog record met the minimal confidence threshold of 0.4.",
+        "is_exact_match": false
+    },
+    "normalized_trait": {
+        "ontology_id": "MONDO:0004979",
+        "ontology_label": "asthma",
+        "grounding_type": "exact",
+        "contains_multiple_concepts": false
+    },
+    "provenance": {
+        "tool_name": "TraitGraph GWAS Reconciler MVP",
+        "tool_version": "0.1.0",
+        "timestamp": "2026-05-30T21:52:10.981575Z",
+        "run_id": "5259ab44-ca88-4b7b-b758-97df8f14f4eb"
+    },
+    "review_flags": {
+        "manual_review_required": true,
+        "reasons": [
+            "No matching record found in mock catalog."
+        ]
+    }
+}

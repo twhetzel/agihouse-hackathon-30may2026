@@ -1,0 +1,14 @@
+{
+    "source_type": "prepublication_summary_statistics_metadata",
+    "title": "Genetic risk factors for childhood-onset and adult-onset asthma in a cohort of Latin American individuals",
+    "authors": [
+        "Gomez A",
+        "Martinez B",
+        "Silva C"
+    ],
+    "reported_trait": "asthma",
+    "preprint_or_submission_id": "prepub-scenario-3",
+    "summary_stats_file": "latin_america_asthma_sumstats.tsv",
+    "cohort": "Latin American cohort",
+    "notes": "No confident match test case with similar title terms but different cohort, different authors, and different summary stats file."
+}
