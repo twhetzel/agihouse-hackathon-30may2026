@@ -1139,14 +1139,6 @@ export default function App() {
         TraitGraph Curation Playground • Real-time Deterministic Client Engine • Hackathon Presentation Grade
       </footer>
 
-      {/* CSS Animations style block */}
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-
     </div>
   );
 }
