@@ -11,8 +11,8 @@ export default defineConfig({
   server: {
     fs: {
       allow: [
-        // Allow serving files from the workspace root (one level up from web/)
-        path.resolve(__dirname, '..')
+        path.resolve(__dirname, '../resources'),
+        path.resolve(__dirname, '../examples')
       ]
     }
   }
