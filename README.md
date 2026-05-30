@@ -18,18 +18,19 @@ The system consists of three modular pipelines:
 ```mermaid
 graph TD
     subgraph "Pipeline Inputs"
-        PrePub[Pre-publication Metadata]
-        Catalog[Mock Curated Catalog]
+        PrePub["Pre-publication Metadata (Messy)"]
+        Catalog["Mock Curated Catalog"]
     end
 
-    subgraph "TraitGraph Core Engines"
-        Reconcile[1. Study Reconciliation Engine]
-        Grounding[2. Ontology Grounding Engine]
-        Export[3. Graph JSON Exporter]
+    subgraph "TraitGraph Curation Playground"
+        Reconcile["1. Deterministic Reconciliation Engine"]
+        Grounding["2. Deterministic Grounding Engine"]
+        Gemini["3. Live Gemini 2.5 Flash Biocurator (Audit)"]
+        Export["4. Evidentiary Graph JSON Exporter"]
     end
 
     subgraph "Pipeline Outputs"
-        GraphReady[Reconciled Graph-Ready Node]
+        GraphReady["Reconciled Graph-Ready Node (with AI Curation Insights)"]
     end
 
     PrePub --> Reconcile
@@ -37,6 +38,9 @@ graph TD
     PrePub -.-> Grounding
     Reconcile --> Export
     Grounding --> Export
+    Reconcile -->|Data & Scores| Gemini
+    Grounding -->|Decomposed Phenotypes| Gemini
+    Gemini -->|AI Curation Insights| Export
     Export --> GraphReady
 ```
 
@@ -57,6 +61,37 @@ graph TD
    - Preserves all raw user inputs exactly.
    - Compiles reconciliation confidence reports, matched catalog schemas, normalized ontology terms, and granular manual review flags.
    - Embeds exhaustive runtime metadata headers (ISO timestamps, tool versions, run UUIDs).
+
+---
+
+## Live Gemini AI Biocurator Flow 🧠
+
+To complement our deterministic matching, the dashboard supports executing an **AI-powered curation audit** using the live **Gemini 2.5 Flash** API via the official `@google/genai` client:
+
+![Live Gemini AI Curation Flow](resources/gemini_curation_flow.png)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Curator as Ingestion Curator
+    participant UI as Curation Dashboard (Vite React)
+    participant Engine as Local Deterministic Engine
+    participant Gemini as Google Gemini 2.5 Flash API
+
+    Curator->>UI: Select Preset Scenario or Edit Metadata
+    UI->>Engine: Run Keystroke-Level Curation Calculations
+    Engine-->>UI: Return Local Scores (Jaccard, Author Overlap) & EFO Tags
+    UI-->>Curator: Render Live Metrics & Grounded Badges
+    
+    Note over Curator, UI: Live Curation Audit Phase
+    Curator->>UI: Click "Execute Live Gemini Biocurator Report"
+    UI->>UI: Read secure git-ignored apiKey (web/.env.local)
+    UI->>Gemini: Call ai.models.generateContent({model: 'gemini-2.5-flash'}) with curation prompt
+    Note right of Gemini: Strict Constraints:<br/>- No PMIDs/GCST hallucinations<br/>- Suggested IDs marked as 'ai_suggested_not_verified'
+    Gemini-->>UI: Return Strict Structured JSON (Decomposed Phenotypes, Recommendations, Uncertainties)
+    UI->>UI: Append 'ai_insights' block to evidentiary Graph node JSON
+    UI-->>Curator: Render gorgeous Live Curation Insight cards!
+```
 
 ---
 

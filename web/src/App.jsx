@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { generateBiocuratorReport } from './gemini';
 
 // Import RAW inputs and resources
 import mockCatalog from '../../resources/traitgraph_mock_catalog_records.json';
@@ -407,6 +408,20 @@ export default function App() {
   const [isReconciling, setIsReconciling] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
+  // GEMINI API CURATION STATES
+  const [apiKey, setApiKey] = useState(() => {
+    const envKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+    if (envKey && envKey !== 'your_gemini_api_key_here') {
+      return envKey;
+    }
+    const saved = localStorage.getItem('traitgraph_gemini_api_key') || '';
+    return saved || '';
+  });
+
+  const [aiReport, setAiReport] = useState(null);
+  const [isAiRunning, setIsAiRunning] = useState(false);
+  const [aiError, setAiError] = useState(null);
+
   // TIMEOUT REF FOR RECONCILER PIPELINE
   const reconciliationTimeoutRef = useRef(null);
 
@@ -431,6 +446,10 @@ export default function App() {
       setPreprintId(preset.prepub.preprint_or_submission_id || '');
       setNotes(preset.prepub.notes || '');
 
+      // Clear AI reports when presets change
+      setAiReport(null);
+      setAiError(null);
+
       // Compile immediately on preset load
       const initialGraph = runEngineCalculations(
         preset.prepub.title || '',
@@ -451,11 +470,17 @@ export default function App() {
   const handleInputChange = (fieldSetter, value) => {
     fieldSetter(value);
     setIsDirty(true);
+    // Clear AI reports when inputs are edited
+    setAiReport(null);
+    setAiError(null);
   };
 
   // PUSH BUTTON TO RUN ENGINE (WITH A BEAUTIFUL GRAPHIC LOAD SHIFT)
   const handleRunReconciler = () => {
     setIsReconciling(true);
+    // Clear AI reports when re-running local reconciler
+    setAiReport(null);
+    setAiError(null);
     
     if (reconciliationTimeoutRef.current) {
       clearTimeout(reconciliationTimeoutRef.current);
@@ -478,6 +503,40 @@ export default function App() {
       setIsDirty(false);
       reconciliationTimeoutRef.current = null;
     }, 850);
+  };
+
+  // EXECUTE LIVE GEMINI API BIOCURATOR REPORT (gemini-2.5-flash)
+  const handleExecuteAiReport = async () => {
+    if (!apiKey || apiKey === "your_gemini_api_key_here") {
+      setAiError("Missing Gemini API Key. Please set VITE_GEMINI_API_KEY inside the git-ignored web/.env.local file.");
+      return;
+    }
+    setIsAiRunning(true);
+    setAiError(null);
+
+    try {
+      const report = await generateBiocuratorReport({
+        apiKey,
+        inputMetadata: compiledGraph.submitted_metadata,
+        matchedRecord: compiledGraph.matched_catalog_record,
+        verification: compiledGraph,
+        localScores: compiledGraph.reconciliation?.scores || { title_similarity: 0, author_similarity: 0, file_similarity: 0 }
+      });
+
+      setAiReport(report);
+      
+      // Dynamic addition of ai_insights block to the displayed graph-ready JSON preview
+      const updatedGraph = {
+        ...compiledGraph,
+        ai_insights: report
+      };
+      setCompiledGraph(updatedGraph);
+
+    } catch (err) {
+      setAiError(err.message || String(err));
+    } finally {
+      setIsAiRunning(false);
+    }
   };
 
   const fallbackCopyText = (text) => {
@@ -559,18 +618,19 @@ export default function App() {
                 TraitGraph Live Playground
               </h1>
               <span className="badge badge-auto" style={{ verticalAlign: 'middle', height: 'fit-content' }}>Real-time Curation</span>
+              {apiKey && apiKey !== "your_gemini_api_key_here" ? (
+                <span className="badge" style={{ verticalAlign: 'middle', height: 'fit-content', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-success)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>🧠 Gemini Active</span>
+              ) : (
+                <span className="badge" style={{ verticalAlign: 'middle', height: 'fit-content', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent-danger)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>🧠 Gemini Offline</span>
+              )}
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', maxWidth: '900px', lineHeight: '1.5' }}>
               Study reconciliation and trait ontology grounding running **live in-browser**. Load a scenario preset, tweak fields inside the playground, and **click the glowing "Run Reconciliation Engine" button** to witness high-performance Jaccard metrics and EFO tags compute with dramatic demo transitions!
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '1.5rem' }}>
-            <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', textAlign: 'center', minWidth: '130px' }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Reconcile Mode</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--accent-primary)' }}>Live Browser</div>
-            </div>
-            <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', textAlign: 'center', minWidth: '130px' }}>
+          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', textAlign: 'center', minWidth: '130px', height: 'fit-content' }}>
               <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Catalog Studies</div>
               <div style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--accent-info)' }}>{mockCatalog.length} records</div>
             </div>
@@ -623,7 +683,7 @@ export default function App() {
       </section>
 
       {/* DASHBOARD CORE GRID */}
-      <main style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr', gap: '2rem', alignItems: 'start' }}>
+      <main style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.1fr)', gap: '2rem', alignItems: 'start' }}>
         
         {/* LEFT COLUMN: INTERACTIVE PLAYGROUND EDITOR */}
         <div className="glass-panel" style={{ padding: '1.75rem', position: 'sticky', top: '20px' }}>
@@ -877,7 +937,7 @@ export default function App() {
         </div>
 
         {/* RIGHT COLUMN: LIVE RECONCILIATION & ONTOLOGY OUTPUTS */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative', minWidth: 0 }}>
           
           {/* BEAUTIFUL PROCESSING TRANSITION OVERLAY */}
           {isReconciling && (
@@ -903,140 +963,142 @@ export default function App() {
           )}
 
           {/* study reconciliation outcomes card */}
-          <div className="glass-panel" style={{ padding: '1.75rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>⚖️</span>
-                <h3 style={{ fontSize: '1.2rem', color: '#fff' }}>Study Reconciliation Live Outcomes</h3>
+            <div className="glass-panel" style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.15rem' }}>⚖️</span>
+                  <h3 style={{ fontSize: '1.1rem', color: '#fff', fontWeight: '600' }}>Reconciliation Outcomes</h3>
+                </div>
+                <span className="badge" style={{ 
+                  background: confidenceScore >= 0.70 ? 'rgba(16, 185, 129, 0.1)' : confidenceScore >= 0.40 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                  color: getConfidenceColor(confidenceScore),
+                  border: `1px solid ${getConfidenceColor(confidenceScore)}`,
+                  fontSize: '0.7rem'
+                }}>
+                  {confidenceScore >= 0.70 ? 'High' : confidenceScore >= 0.40 ? 'Probable' : 'No Match'}
+                </span>
               </div>
-              <span className="badge" style={{ 
-                background: confidenceScore >= 0.70 ? 'rgba(16, 185, 129, 0.1)' : confidenceScore >= 0.40 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                color: getConfidenceColor(confidenceScore),
-                border: `1px solid ${getConfidenceColor(confidenceScore)}`
-              }}>
-                {confidenceScore >= 0.70 ? 'High Confidence' : confidenceScore >= 0.40 ? 'Probable Match' : 'No Confident Match'}
-              </span>
+
+              {matched_catalog_record ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                  
+                  {/* Live Jaccard confidence score meter */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                      <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Confidence</span>
+                      <span style={{ fontSize: '1.05rem', fontWeight: '700', color: getConfidenceColor(confidenceScore) }}>{confidencePercent}</span>
+                    </div>
+                    <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ width: confidencePercent, height: '100%', background: getConfidenceColor(confidenceScore), transition: 'width 0.3s ease-in-out', boxShadow: `0 0 10px ${getConfidenceColor(confidenceScore)}` }}></div>
+                    </div>
+                  </div>
+
+                  {/* Score weights list */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem', background: 'rgba(0,0,0,0.15)', padding: '0.5rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)', textAlign: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Title (40%)</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#fff', marginTop: '0.1rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.title_similarity : 0) * 100).toFixed(0)}%</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Auth (30%)</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#fff', marginTop: '0.1rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.author_similarity : 0) * 100).toFixed(0)}%</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>File (30%)</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#fff', marginTop: '0.1rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.file_similarity : 0) * 100).toFixed(0)}%</div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Best Reconciled Study</span>
+                    <p style={{ fontSize: '0.95rem', marginTop: '0.2rem', color: '#fff', fontWeight: '500', lineHeight: '1.3' }}>
+                      "{matched_catalog_record.title}"
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Accession ID</span>
+                      <p style={{ marginTop: '0.15rem', fontSize: '0.95rem', fontWeight: '700', color: 'var(--accent-primary)' }}>
+                        {matched_catalog_record.catalog_accession}
+                      </p>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>PMID</span>
+                      <p style={{ marginTop: '0.15rem', fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                        {matched_catalog_record.publication_id}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Explanation</span>
+                    <p style={{ marginTop: '0.15rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.3', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.6rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                      {reconciliation?.explanation}
+                    </p>
+                  </div>
+
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '2rem' }}>❌</span>
+                  <h4 style={{ color: '#ef4444', fontWeight: '600', fontSize: '0.95rem' }}>No Confident Match</h4>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.3' }}>
+                    Overall Jaccard metric is below the 40% threshold ({confidencePercent}). Ingestion blocked.
+                  </p>
+                </div>
+              )}
             </div>
 
-            {matched_catalog_record ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+            {/* ontology grounding outcomes card */}
+            <div className="glass-panel" style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.15rem' }}>🧬</span>
+                  <h3 style={{ fontSize: '1.1rem', color: '#fff', fontWeight: '600' }}>Grounding Outcomes</h3>
+                </div>
+                <span className={`badge ${getGroundingBadgeClass(normalized_trait?.grounding_type)}`} style={{ fontSize: '0.7rem' }}>
+                  {normalized_trait?.grounding_type || 'FAILED'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
                 
-                {/* Live Jaccard confidence score meter */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Reconciliation Confidence</span>
-                    <span style={{ fontSize: '1.15rem', fontWeight: '700', color: getConfidenceColor(confidenceScore) }}>{confidencePercent}</span>
-                  </div>
-                  <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ width: confidencePercent, height: '100%', background: getConfidenceColor(confidenceScore), transition: 'width 0.3s ease-in-out', boxShadow: `0 0 10px ${getConfidenceColor(confidenceScore)}` }}></div>
-                  </div>
-                </div>
-
-                {/* Score weights list */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', background: 'rgba(0,0,0,0.15)', padding: '0.6rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)', textAlign: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '0.75rem' }}>
                   <div>
-                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Title Jaccard (40%)</div>
-                    <div style={{ fontSize: '1rem', fontWeight: '700', color: '#fff', marginTop: '0.15rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.title_similarity : 0) * 100).toFixed(0)}%</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Author Overlap (30%)</div>
-                    <div style={{ fontSize: '1rem', fontWeight: '700', color: '#fff', marginTop: '0.15rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.author_similarity : 0) * 100).toFixed(0)}%</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>File Overlap (30%)</div>
-                    <div style={{ fontSize: '1rem', fontWeight: '700', color: '#fff', marginTop: '0.15rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.file_similarity : 0) * 100).toFixed(0)}%</div>
-                  </div>
-                </div>
-
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Best Reconciled Study</span>
-                  <p style={{ fontSize: '1.05rem', marginTop: '0.25rem', color: '#fff', fontWeight: '500', lineHeight: '1.4' }}>
-                    "{matched_catalog_record.title}"
-                  </p>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>GWAS Accession ID</span>
-                    <p style={{ marginTop: '0.25rem', fontSize: '1.05rem', fontWeight: '700', color: 'var(--accent-primary)' }}>
-                      {matched_catalog_record.catalog_accession}
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Standardized Label</span>
+                    <p style={{ marginTop: '0.2rem', fontSize: '0.95rem', fontWeight: '600', color: '#fff', lineHeight: '1.3' }}>
+                      {normalized_trait?.ontology_label || 'FAILED MAPPING'}
                     </p>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Publication PMID</span>
-                    <p style={{ marginTop: '0.25rem', fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-primary)' }}>
-                      {matched_catalog_record.publication_id}
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Ontology ID</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
+                      <span style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--accent-info)', fontFamily: 'var(--font-mono)' }}>
+                        {normalized_trait?.ontology_id || 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Multi-Concept Flag</span>
+                    <p style={{ marginTop: '0.15rem', fontSize: '0.85rem', fontWeight: '600', color: normalized_trait?.contains_multiple_concepts ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
+                      {normalized_trait?.contains_multiple_concepts ? 'YES [Compound] ⚠️' : 'NO [Single] ✅'}
+                    </p>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Curation Action</span>
+                    <p style={{ marginTop: '0.15rem', fontSize: '0.85rem', fontWeight: '600', color: review_flags?.manual_review_required ? 'var(--accent-warning)' : 'var(--accent-success)' }}>
+                      {review_flags?.manual_review_required ? 'Manual Review' : 'Auto Ingestion'}
                     </p>
                   </div>
                 </div>
 
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Reconciliation Explanation</span>
-                  <p style={{ marginTop: '0.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4', background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                    {reconciliation?.explanation}
-                  </p>
-                </div>
-
               </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '2.5rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '2.5rem' }}>❌</span>
-                <h4 style={{ color: '#ef4444', fontWeight: '600' }}>No Confident Match Reconciled</h4>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', maxWidth: '380px', lineHeight: '1.4' }}>
-                  Overall calculated Jaccard metric is below the 40% threshold ({confidencePercent}). Automatic merge blocked to prevent duplicate entries and database pollution.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* ontology grounding outcomes card */}
-          <div className="glass-panel" style={{ padding: '1.75rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>🧬</span>
-                <h3 style={{ fontSize: '1.2rem', color: '#fff' }}>Ontology Grounding Live Outcomes</h3>
-              </div>
-              <span className={`badge ${getGroundingBadgeClass(normalized_trait?.grounding_type)}`}>
-                {normalized_trait?.grounding_type || 'FAILED'} Grounding
-              </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1rem' }}>
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Standardized Ontology Label</span>
-                  <p style={{ marginTop: '0.25rem', fontSize: '1.1rem', fontWeight: '600', color: '#fff' }}>
-                    {normalized_trait?.ontology_label || 'FAILED MAPPING'}
-                  </p>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Ontology ID</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
-                    <span style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--accent-info)', fontFamily: 'var(--font-mono)' }}>
-                      {normalized_trait?.ontology_id || 'N/A'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Multi-Concept Flag</span>
-                  <p style={{ marginTop: '0.25rem', fontSize: '0.95rem', fontWeight: '600', color: normalized_trait?.contains_multiple_concepts ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
-                    {normalized_trait?.contains_multiple_concepts ? 'YES [Compound Phenotype] ⚠️' : 'NO [Single Concept] ✅'}
-                  </p>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Curation Action Required</span>
-                  <p style={{ marginTop: '0.25rem', fontSize: '0.95rem', fontWeight: '600', color: review_flags?.manual_review_required ? 'var(--accent-warning)' : 'var(--accent-success)' }}>
-                    {review_flags?.manual_review_required ? 'YES [Manual Review]' : 'NO [Auto Ingestion]'}
-                  </p>
-                </div>
-              </div>
-
-            </div>
-          </div>
 
           {/* review flags action card */}
           <div className="glass-panel" style={{ 
@@ -1065,6 +1127,183 @@ export default function App() {
                     Study reconciliation match meets confidence and grounding is exact. No review reasons triggered.
                   </p>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* GEMINI AI BIOCURATOR CARD */}
+          <div className="glass-panel" style={{ 
+            padding: '1.75rem', 
+            border: '1px solid rgba(139, 92, 246, 0.3)',
+            boxShadow: '0 0 20px rgba(139, 92, 246, 0.1)',
+            background: 'linear-gradient(to bottom right, rgba(139, 92, 246, 0.03), transparent)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.25rem' }}>🧠</span>
+                <h3 style={{ fontSize: '1.2rem', color: '#fff', fontWeight: '600' }}>Live Gemini Biocurator Report</h3>
+              </div>
+              <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+                gemini-2.5-flash
+              </span>
+            </div>
+
+            {aiReport ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                
+                {/* Curator Recommendation */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', padding: '0.75rem 1rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>AI Curator Recommendation</span>
+                  <span className={`badge ${
+                    aiReport.curator_recommendation === 'auto_merge' ? 'badge-exact' :
+                    aiReport.curator_recommendation === 'curator_review' ? 'badge-approximate' : 'badge-review'
+                  }`} style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}>
+                    {aiReport.curator_recommendation?.replace(/_/g, ' ')}
+                  </span>
+                </div>
+
+                {/* Semantic Study Match Analysis */}
+                <div>
+                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Semantic Study Match Analysis</span>
+                  <p style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.5', background: 'rgba(0, 0, 0, 0.2)', padding: '0.85rem', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
+                    {aiReport.semantic_study_match_analysis}
+                  </p>
+                </div>
+
+                {/* Ontology Concept Decomposition */}
+                <div>
+                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em', display: 'block', marginBottom: '0.5rem' }}>Ontology Concept Decomposition</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {aiReport.ontology_decomposition?.map((dec, i) => (
+                      <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '6px', padding: '0.75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                          <span style={{ fontWeight: '600', color: '#fff', fontSize: '0.95rem' }}>"{dec.concept}"</span>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            {dec.suggested_id && (
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--accent-info)', fontWeight: '600' }}>
+                                {dec.suggested_id}
+                              </span>
+                            )}
+                            <span className="badge badge-synonym" style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', background: 'rgba(59,130,246,0.1)' }}>
+                              {dec.suggestion_status}
+                            </span>
+                          </div>
+                        </div>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                          {dec.reasoning}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Uncertainty & Review Notes */}
+                {aiReport.uncertainty_notes && aiReport.uncertainty_notes.length > 0 && (
+                  <div>
+                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em', display: 'block', marginBottom: '0.35rem' }}>Uncertainty & Review Notes</span>
+                    <ul style={{ paddingLeft: '1.2rem', color: '#fda4af', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', lineHeight: '1.4' }}>
+                      {aiReport.uncertainty_notes.map((note, i) => (
+                        <li key={i}>{note}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', padding: '1.5rem 0', textAlign: 'center' }}>
+                <span style={{ fontSize: '2.5rem' }}>🧠</span>
+                <div>
+                  <h4 style={{ fontWeight: '600', color: '#fff', marginBottom: '0.25rem' }}>AI Biocurator Analysis Layer</h4>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', maxWidth: '380px', lineHeight: '1.4' }}>
+                    Generate dynamic, AI-powered semantic validations and concept decompositions using Gemini 2.5 Flash.
+                  </p>
+                </div>
+                 {(!apiKey || apiKey === 'your_gemini_api_key_here') && (
+                  <div style={{
+                    width: '100%',
+                    maxWidth: '380px',
+                    background: 'rgba(255,255,255,0.01)',
+                    border: '1px solid rgba(139, 92, 246, 0.15)',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    textAlign: 'left',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+                  }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                      🔑 Enter Gemini API Key
+                    </label>
+                    <input
+                      type="password"
+                      value={apiKey === 'your_gemini_api_key_here' ? '' : apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="AIzaSy..."
+                      style={{
+                        width: '100%',
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid var(--border-glass)',
+                        borderRadius: '6px',
+                        padding: '0.5rem 0.75rem',
+                        fontSize: '0.85rem',
+                        color: '#fff',
+                        outline: 'none',
+                        transition: 'border 0.2s'
+                      }}
+                    />
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: '0.5rem', lineHeight: '1.3' }}>
+                      Key will be kept in React state memory. To persist permanently, write it to the git-ignored <code style={{ color: 'var(--accent-info)' }}>web/.env.local</code> file!
+                    </p>
+                  </div>
+                )}
+
+                {aiError && (
+                  <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--accent-danger)', borderRadius: '6px', padding: '0.75rem 1rem', color: '#fca5a5', fontSize: '0.85rem', maxWidth: '420px', lineHeight: '1.4', textAlign: 'left' }}>
+                    ⚠️ {aiError}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleExecuteAiReport}
+                  disabled={isAiRunning || isDirty || isReconciling}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    cursor: (isAiRunning || isDirty || isReconciling) ? 'not-allowed' : 'pointer',
+                    background: (isDirty || isReconciling) ? 'rgba(255,255,255,0.03)' : 'linear-gradient(135deg, #7c3aed, #db2777)',
+                    color: (isDirty || isReconciling) ? 'var(--text-muted)' : '#fff',
+                    border: (isDirty || isReconciling) ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(139,92,246,0.4)',
+                    borderRadius: 'var(--radius-md)',
+                    boxShadow: (isDirty || isReconciling) ? 'none' : '0 0 15px rgba(139, 92, 246, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    transition: 'var(--transition-smooth)',
+                    opacity: (isDirty || isReconciling) ? 0.5 : 1
+                  }}
+                >
+                  {isAiRunning ? (
+                    <>
+                      <svg style={{ animation: 'spin 1s linear infinite' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
+                      Gemini is reviewing study alignment...
+                    </>
+                  ) : isReconciling ? (
+                    <>
+                      <span>⏳</span>
+                      Waiting for Local Reconciliation...
+                    </>
+                  ) : isDirty ? (
+                    <>
+                      <span>⚠️</span>
+                      Reconciliation Outdated (Run Engine First)
+                    </>
+                  ) : (
+                    <>
+                      <span>🧠</span>
+                      Execute Live Gemini Biocurator Report
+                    </>
+                  )}
+                </button>
               </div>
             )}
           </div>
@@ -1107,9 +1346,11 @@ export default function App() {
               </button>
             </div>
 
-            <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ flex: 1, position: 'relative', minWidth: 0, maxWidth: '100%' }}>
               <pre style={{
                 maxHeight: '380px',
+                maxWidth: '100%',
+                minWidth: 0,
                 overflow: 'auto',
                 padding: '1rem',
                 background: 'rgba(0, 0, 0, 0.3)',
@@ -1124,7 +1365,7 @@ export default function App() {
               </pre>
             </div>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               <span>Live Run UUID: {provenance?.run_id}</span>
               <span>Timestamp: {provenance?.timestamp}</span>
             </div>
