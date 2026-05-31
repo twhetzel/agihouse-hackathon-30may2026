@@ -39,8 +39,11 @@ const presets = [
 function formatVerificationModeLabel(mode) {
   if (mode === 'local_demo_fallback') return 'Demo';
   if (mode === 'live') return 'Live';
-  if (mode === 'unavailable') return 'Unavailable';
-  return mode?.replace(/_/g, ' ') || 'Unavailable';
+  if (mode === 'unavailable' || !mode) return 'Unavailable';
+  if (typeof mode === 'string') {
+    return mode.replace(/_/g, ' ');
+  }
+  return 'Unavailable';
 }
 
 // ==========================================
