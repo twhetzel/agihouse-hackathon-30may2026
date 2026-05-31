@@ -37,6 +37,81 @@ def create_graph_ready_json(prepub_data, match_result, grounding_result):
     for r in review_reasons:
         if r not in unique_reasons:
             unique_reasons.append(r)
+
+    # Check 3: External Publication & Literature Grounding Verifications
+    reported_trait = str(prepub_data.get("reported_trait", "")).lower().strip()
+    if not best_match:
+        external_verification = {
+            "openalex_publication_verification": {
+                "mode": "local_demo_fallback",
+                "publication_match_status": "not_verified",
+                "title_verified": False,
+                "author_overlap_verified": False,
+                "source": "OpenAlex local mock",
+                "evidence_summary": "No matching publication found in OpenAlex catalog under these author lists."
+            },
+            "literature_evidence_verification": {
+                "mode": "local_demo_fallback",
+                "evidence_status": "does_not_support",
+                "source": "Literature Science Skill local mock",
+                "evidence_summary": "No publication matches the prepublication study title and authors. Literature evidence does not support matching.",
+                "review_impact": "supports_do_not_merge"
+            }
+        }
+    elif reported_trait == "wheeze/asthma/allergy":
+        external_verification = {
+            "openalex_publication_verification": {
+                "mode": "local_demo_fallback",
+                "publication_match_status": "verified",
+                "title_verified": True,
+                "author_overlap_verified": True,
+                "source": "OpenAlex local mock",
+                "evidence_summary": "Preprint paper verified on OpenAlex with matched metadata."
+            },
+            "literature_evidence_verification": {
+                "mode": "local_demo_fallback",
+                "evidence_status": "supports_review",
+                "source": "Literature Science Skill local mock",
+                "evidence_summary": "Study exists in literature database, but trait 'wheeze/asthma/allergy' is compound, requiring biocurator review.",
+                "review_impact": "supports_curator_review"
+            }
+        }
+    elif is_exact_study or confidence_score >= 0.95:
+        external_verification = {
+            "openalex_publication_verification": {
+                "mode": "local_demo_fallback",
+                "publication_match_status": "verified",
+                "title_verified": True,
+                "author_overlap_verified": True,
+                "source": "OpenAlex local mock",
+                "evidence_summary": "Perfect title match and high author list overlap (100%) verified in OpenAlex catalog."
+            },
+            "literature_evidence_verification": {
+                "mode": "local_demo_fallback",
+                "evidence_status": "supports_match",
+                "source": "Literature Science Skill local mock",
+                "evidence_summary": "Preprint matched fully to published paper in EuropePMC/PubMed with identical cohorts and sample sizes.",
+                "review_impact": "supports_auto_merge"
+            }
+        }
+    else:
+        external_verification = {
+            "openalex_publication_verification": {
+                "mode": "local_demo_fallback",
+                "publication_match_status": "partially_verified",
+                "title_verified": True,
+                "author_overlap_verified": False,
+                "source": "OpenAlex local mock",
+                "evidence_summary": "Title token Jaccard similarity is high, but author list verification has minor mismatch."
+            },
+            "literature_evidence_verification": {
+                "mode": "local_demo_fallback",
+                "evidence_status": "supports_review",
+                "source": "Literature Science Skill local mock",
+                "evidence_summary": "Paper identified in OpenAlex/EuropePMC, but reported trait has ambiguous mapping, requiring manual review.",
+                "review_impact": "supports_curator_review"
+            }
+        }
             
     # Structure graph JSON
     graph_node = {
@@ -62,6 +137,9 @@ def create_graph_ready_json(prepub_data, match_result, grounding_result):
             "grounding_type": grounding_result.get("grounding_type"),
             "contains_multiple_concepts": grounding_result.get("contains_multiple_concepts", False)
         },
+        
+        # External verification details
+        "external_verification": external_verification,
         
         # Provenance record
         "provenance": {

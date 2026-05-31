@@ -1,6 +1,6 @@
 {
     "graph_schema_version": "1.0.0",
-    "entity_id": "traitgraph-node-c4fd4645-69a3-44eb-8672-b43e272062ff",
+    "entity_id": "traitgraph-node-59e7b739-6eee-44f8-91b3-73a3aac436a5",
     "submitted_metadata": {
         "source_type": "prepublication_summary_statistics_metadata",
         "title": "Genetic risk factors for childhood-onset and adult-onset asthma in a cohort of Latin American individuals",
@@ -27,11 +27,28 @@
         "grounding_type": "exact",
         "contains_multiple_concepts": false
     },
+    "external_verification": {
+        "openalex_publication_verification": {
+            "mode": "local_demo_fallback",
+            "publication_match_status": "not_verified",
+            "title_verified": false,
+            "author_overlap_verified": false,
+            "source": "OpenAlex local mock",
+            "evidence_summary": "No matching publication found in OpenAlex catalog under these author lists."
+        },
+        "literature_evidence_verification": {
+            "mode": "local_demo_fallback",
+            "evidence_status": "does_not_support",
+            "source": "Literature Science Skill local mock",
+            "evidence_summary": "No publication matches the prepublication study title and authors. Literature evidence does not support matching.",
+            "review_impact": "supports_do_not_merge"
+        }
+    },
     "provenance": {
         "tool_name": "TraitGraph GWAS Reconciler MVP",
         "tool_version": "0.1.0",
-        "timestamp": "2026-05-31T00:14:29.752507Z",
-        "run_id": "1a66d109-5725-4b01-bfff-30b095807587"
+        "timestamp": "2026-05-31T00:41:33.651364Z",
+        "run_id": "7fda8eb8-892b-441d-a421-516d01fca68d"
     },
     "review_flags": {
         "manual_review_required": true,

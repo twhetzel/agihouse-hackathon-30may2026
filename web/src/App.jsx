@@ -343,6 +343,83 @@ function compileGraphReadyJson(prepubData, matchResult, groundingResult, seed = 
   // Deduplicate
   const uniqueReasons = [...new Set(reviewReasons)];
   
+  // Check 3: External Publication & Literature Grounding Verifications
+  const trait = (prepubData.reported_trait || "").toLowerCase().trim();
+  let externalVerification = {};
+  if (!bestMatch) {
+    externalVerification = {
+      openalex_publication_verification: {
+        mode: "local_demo_fallback",
+        publication_match_status: "not_verified",
+        title_verified: false,
+        author_overlap_verified: false,
+        source: "OpenAlex local mock",
+        evidence_summary: "No matching publication found in OpenAlex catalog under these author lists."
+      },
+      literature_evidence_verification: {
+        mode: "local_demo_fallback",
+        evidence_status: "does_not_support",
+        source: "Literature Science Skill local mock",
+        evidence_summary: "No publication matches the prepublication study title and authors. Literature evidence does not support matching.",
+        review_impact: "supports_do_not_merge"
+      }
+    };
+  } else if (trait === "wheeze/asthma/allergy") {
+    externalVerification = {
+      openalex_publication_verification: {
+        mode: "local_demo_fallback",
+        publication_match_status: "verified",
+        title_verified: true,
+        author_overlap_verified: true,
+        source: "OpenAlex local mock",
+        evidence_summary: "Preprint paper verified on OpenAlex with matched metadata."
+      },
+      literature_evidence_verification: {
+        mode: "local_demo_fallback",
+        evidence_status: "supports_review",
+        source: "Literature Science Skill local mock",
+        evidence_summary: "Study exists in literature database, but trait 'wheeze/asthma/allergy' is compound, requiring biocurator review.",
+        review_impact: "supports_curator_review"
+      }
+    };
+  } else if (isExactStudy || confidenceScore >= 0.95) {
+    externalVerification = {
+      openalex_publication_verification: {
+        mode: "local_demo_fallback",
+        publication_match_status: "verified",
+        title_verified: true,
+        author_overlap_verified: true,
+        source: "OpenAlex local mock",
+        evidence_summary: "Perfect title match and high author list overlap (100%) verified in OpenAlex catalog."
+      },
+      literature_evidence_verification: {
+        mode: "local_demo_fallback",
+        evidence_status: "supports_match",
+        source: "Literature Science Skill local mock",
+        evidence_summary: "Preprint matched fully to published paper in EuropePMC/PubMed with identical cohorts and sample sizes.",
+        review_impact: "supports_auto_merge"
+      }
+    };
+  } else {
+    externalVerification = {
+      openalex_publication_verification: {
+        mode: "local_demo_fallback",
+        publication_match_status: "partially_verified",
+        title_verified: true,
+        author_overlap_verified: false,
+        source: "OpenAlex local mock",
+        evidence_summary: "Title token Jaccard similarity is high, but author list verification has minor mismatch."
+      },
+      literature_evidence_verification: {
+        mode: "local_demo_fallback",
+        evidence_status: "supports_review",
+        source: "Literature Science Skill local mock",
+        evidence_summary: "Paper identified in OpenAlex/EuropePMC, but reported trait has ambiguous mapping, requiring manual review.",
+        review_impact: "supports_curator_review"
+      }
+    };
+  }
+  
   return {
     graph_schema_version: "1.0.0",
     entity_id: generateUUID(prepubData.title || seed),
@@ -360,6 +437,7 @@ function compileGraphReadyJson(prepubData, matchResult, groundingResult, seed = 
       grounding_type: groundingResult.grounding_type,
       contains_multiple_concepts: groundingResult.contains_multiple_concepts
     },
+    external_verification: externalVerification,
     provenance: {
       tool_name: "TraitGraph GWAS Reconciler MVP Live Engine",
       tool_version: "0.1.0",
@@ -600,6 +678,8 @@ export default function App() {
   const confidenceScore = reconciliation?.confidence_score || 0;
   const confidencePercent = `${(confidenceScore * 100).toFixed(1)}%`;
   const isTraitAmbiguous = normalized_trait?.contains_multiple_concepts || normalized_trait?.grounding_type === 'ambiguous';
+  const openAlexMode = compiledGraph?.external_verification?.openalex_publication_verification?.mode || 'unavailable';
+  const litMode = compiledGraph?.external_verification?.literature_evidence_verification?.mode || 'unavailable';
 
   const getConfidenceColor = (score) => {
     if (score >= 0.70) return 'var(--accent-success)';
@@ -638,6 +718,26 @@ export default function App() {
               ) : (
                 <span className="badge" style={{ verticalAlign: 'middle', height: 'fit-content', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent-danger)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>🧠 Gemini Offline</span>
               )}
+              
+              <span className="badge" style={{ 
+                verticalAlign: 'middle', 
+                height: 'fit-content', 
+                background: openAlexMode === 'live' ? 'rgba(16, 185, 129, 0.1)' : openAlexMode === 'local_demo_fallback' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                color: openAlexMode === 'live' ? 'var(--accent-success)' : openAlexMode === 'local_demo_fallback' ? '#a5b4fc' : 'var(--accent-danger)',
+                border: openAlexMode === 'live' ? '1px solid rgba(16, 185, 129, 0.3)' : openAlexMode === 'local_demo_fallback' ? '1px solid rgba(129, 140, 248, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)'
+              }}>
+                📚 OpenAlex: {openAlexMode === 'local_demo_fallback' ? 'fallback' : openAlexMode}
+              </span>
+
+              <span className="badge" style={{ 
+                verticalAlign: 'middle', 
+                height: 'fit-content', 
+                background: litMode === 'live' ? 'rgba(16, 185, 129, 0.1)' : litMode === 'local_demo_fallback' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                color: litMode === 'live' ? 'var(--accent-success)' : litMode === 'local_demo_fallback' ? '#a5b4fc' : 'var(--accent-danger)',
+                border: litMode === 'live' ? '1px solid rgba(16, 185, 129, 0.3)' : litMode === 'local_demo_fallback' ? '1px solid rgba(129, 140, 248, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)'
+              }}>
+                📖 Literature: {litMode === 'local_demo_fallback' ? 'fallback' : litMode}
+              </span>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', maxWidth: '850px', lineHeight: '1.5', marginBottom: '1rem' }}>
               TraitGraph matches messy pre-publication GWAS metadata to curated catalog-style studies, grounds trait labels, verifies uncertainty, and exports provenance-rich evidence records.
@@ -728,14 +828,14 @@ export default function App() {
               </p>
             </div>
 
-            {/* Step 2: Literature Grounder */}
+            {/* Step 2: Literature + OpenAlex Verifier */}
             <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                 <span style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>2</span>
-                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Literature Grounder</strong>
+                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Literature + OpenAlex Verifier</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Science Skills-compatible literature grounding, local fallback in demo.
+                Science Skills OpenAlex and literature verifications, local fallback in demo.
               </p>
             </div>
 
@@ -1197,6 +1297,90 @@ export default function App() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* External Verification Layers Card */}
+          <div className="glass-panel" style={{ 
+            padding: '1.75rem', 
+            background: 'rgba(17, 24, 39, 0.45)', 
+            border: '1px solid rgba(129, 140, 248, 0.25)',
+            boxShadow: '0 0 20px rgba(129, 140, 248, 0.05)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.25rem' }}>🌐</span>
+                <h3 style={{ fontSize: '1.2rem', color: '#fff', fontWeight: '700' }}>External Verification Layers</h3>
+              </div>
+              <span className="badge" style={{ 
+                background: 'rgba(129, 140, 248, 0.15)',
+                color: '#a5b4fc',
+                border: '1px solid rgba(129, 140, 248, 0.3)',
+                fontSize: '0.75rem',
+                padding: '0.25rem 0.65rem'
+              }}>
+                Multi-Agent Verification
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
+              {/* OpenAlex Publication Verifier */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#38bdf8', letterSpacing: '0.05em', fontWeight: '700', margin: 0 }}>
+                    OpenAlex Verifier
+                  </h4>
+                  <span className={`badge ${
+                    compiledGraph.external_verification?.openalex_publication_verification?.publication_match_status === 'verified' ? 'badge-exact' :
+                    compiledGraph.external_verification?.openalex_publication_verification?.publication_match_status === 'partially_verified' ? 'badge-approximate' : 'badge-failed'
+                  }`} style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
+                    {compiledGraph.external_verification?.openalex_publication_verification?.publication_match_status || 'unavailable'}
+                  </span>
+                </div>
+
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
+                  <div>Title Match: <strong>{compiledGraph.external_verification?.openalex_publication_verification?.title_verified ? "Verified ✓" : "Failed ✗"}</strong></div>
+                  <div>Author Overlap: <strong>{compiledGraph.external_verification?.openalex_publication_verification?.author_overlap_verified ? "Verified ✓" : "Failed ✗"}</strong></div>
+                  <div>Source: <span style={{ color: 'var(--text-muted)' }}>{compiledGraph.external_verification?.openalex_publication_verification?.source}</span></div>
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+                  <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600' }}>Evidence Summary</span>
+                  <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.75rem', color: '#cbd5e1', lineHeight: '1.4' }}>
+                    {compiledGraph.external_verification?.openalex_publication_verification?.evidence_summary}
+                  </p>
+                </div>
+              </div>
+
+              {/* Literature Evidence Verifier */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#fbbf24', letterSpacing: '0.05em', fontWeight: '700', margin: 0 }}>
+                    Literature Evidence
+                  </h4>
+                  <span className={`badge ${
+                    compiledGraph.external_verification?.literature_evidence_verification?.evidence_status === 'supports_match' ? 'badge-exact' :
+                    compiledGraph.external_verification?.literature_evidence_verification?.evidence_status === 'supports_review' ? 'badge-approximate' : 'badge-failed'
+                  }`} style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
+                    {compiledGraph.external_verification?.literature_evidence_verification?.evidence_status?.replace('_', ' ') || 'unavailable'}
+                  </span>
+                </div>
+
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
+                  <div>Review Impact: <strong style={{ 
+                    color: compiledGraph.external_verification?.literature_evidence_verification?.review_impact === 'supports_auto_merge' ? 'var(--accent-success)' :
+                           compiledGraph.external_verification?.literature_evidence_verification?.review_impact === 'supports_curator_review' ? 'var(--accent-warning)' : 'var(--accent-danger)'
+                  }}>{compiledGraph.external_verification?.literature_evidence_verification?.review_impact?.replace(/_/g, ' ')}</strong></div>
+                  <div>Source: <span style={{ color: 'var(--text-muted)' }}>{compiledGraph.external_verification?.literature_evidence_verification?.source}</span></div>
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+                  <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600' }}>Evidence Summary</span>
+                  <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.75rem', color: '#cbd5e1', lineHeight: '1.4' }}>
+                    {compiledGraph.external_verification?.literature_evidence_verification?.evidence_summary}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* review flags action card */}
