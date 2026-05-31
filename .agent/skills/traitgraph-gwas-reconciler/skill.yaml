@@ -1,0 +1,14 @@
+id: traitgraph-gwas-reconciler
+name: TraitGraph GWAS Reconciler
+description: Reconciles messy pre-publication GWAS summary statistics metadata with published GWAS Catalog-style records, grounds reported traits with ontology lookup, and emits provenance-rich graph-ready JSON.
+version: 0.1.0
+entrypoint: scripts/reconcile_gwas.py
+inputs:
+  metadata:
+    type: object
+    description: Messy pre-publication GWAS metadata containing study title, authors, reported trait, cohort, and summary-stat file clues.
+    required: true
+outputs:
+  graph_ready_json:
+    type: object
+    description: Provenance-rich graph-ready JSON containing deterministic reconciliation confidence, EFO/MONDO normalized trait mapping, and biocurator review flags.
