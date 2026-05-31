@@ -344,7 +344,7 @@ function compileGraphReadyJson(prepubData, matchResult, groundingResult, seed = 
   const uniqueReasons = [...new Set(reviewReasons)];
   
   // Check 3: External Publication & Literature Grounding Verifications
-  const trait = (prepubData.reported_trait || "").toLowerCase().trim();
+  const trait = (prepubData?.reported_trait || "").toLowerCase().trim();
   let externalVerification = {};
   if (!bestMatch) {
     externalVerification = {
