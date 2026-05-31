@@ -39,7 +39,7 @@ def create_graph_ready_json(prepub_data, match_result, grounding_result):
             unique_reasons.append(r)
 
     # Check 3: External Publication & Literature Grounding Verifications
-    reported_trait = str(prepub_data.get("reported_trait", "")).lower().strip()
+    reported_trait = str((prepub_data or {}).get("reported_trait", "")).lower().strip()
     if not best_match:
         external_verification = {
             "openalex_publication_verification": {
