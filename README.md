@@ -95,6 +95,27 @@ sequenceDiagram
 
 ---
 
+## Hackathon Stack Alignment
+
+TraitGraph is architected to align with the core technologies of the hackathon ecosystem:
+
+* **Antigravity**: Developed using the Antigravity developer tools and packaged as a custom workspace skill.
+* **Managed Agents API**: Structured in compliance with managed agent architectures, utilizing:
+  * [AGENTS.md](AGENTS.md) detailing the 6-stage multi-agent orchestration (Triager, Literature Grounder, GWAS Study Matcher, Trait Grounder, Evidence Verifier, and Recording Clerk).
+  * [SKILL.md](.agent/skills/traitgraph-gwas-reconciler/SKILL.md) outlining human-readable skill profiles.
+  * [skill.yaml](.agent/skills/traitgraph-gwas-reconciler/skill.yaml) detailing the lightweight custom skill manifest and CLI entrypoint.
+* **Gemini API**: Leveraged live using the `gemini-2.5-flash` model for AI-assisted semantic curation, concept decomposition, and biocurator reasoning when ambiguous compound traits are detected.
+* **Science Skills**: Engineered to support integration with literature/OpenAlex Science Skills (`literature-search-openalex`, `literature-search-europepmc`, `pubmed-database`) for publication matching, using high-fidelity local fallback mocks in the current demo.
+
+### Future Extensions (Out of Scope for Demo)
+
+The following capabilities are planned as future extensions and are *not* implemented in the active demo to maintain high performance and codebase stability:
+- **ClinVar, UniProt, or AlphaFold**: Integrating structural variant, protein impact, and predicted structure analyses.
+- **Live GWAS Catalog API**: Real-time study search and catalog validation.
+- **Live OLS (Ontology Lookup Service) API**: Dynamic external ontology validation.
+
+---
+
 ## Quick Start
 
 ### Prerequisites

@@ -599,6 +599,7 @@ export default function App() {
   const { matched_catalog_record, reconciliation, normalized_trait, review_flags, provenance } = compiledGraph;
   const confidenceScore = reconciliation?.confidence_score || 0;
   const confidencePercent = `${(confidenceScore * 100).toFixed(1)}%`;
+  const isTraitAmbiguous = normalized_trait?.contains_multiple_concepts || normalized_trait?.grounding_type === 'ambiguous';
 
   const getConfidenceColor = (score) => {
     if (score >= 0.70) return 'var(--accent-success)';
@@ -714,7 +715,7 @@ export default function App() {
           <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#a5b4fc', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span>📋</span> TraitGraph Curation & Verification Pipeline
           </h4>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', alignItems: 'start' }}>
             
             {/* Step 1: Triager */}
             <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
@@ -723,51 +724,62 @@ export default function App() {
                 <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Triager</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Extracts title, authors, trait text, cohort, and summary-stat file clues.
+                Extracts study title, authors, reported trait, cohort, and summary-stat file clues.
               </p>
             </div>
 
-            {/* Step 2: Matcher */}
+            {/* Step 2: Literature Grounder */}
             <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <span style={{ background: 'rgba(6, 182, 212, 0.2)', color: '#22d3ee', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>2</span>
-                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Matcher</strong>
+                <span style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>2</span>
+                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Literature Grounder</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Compares messy pre-publication metadata to catalog-style GWAS records.
+                Science Skills-compatible literature grounding, local fallback in demo.
               </p>
             </div>
 
-            {/* Step 3: Grounder */}
+            {/* Step 3: GWAS Matcher */}
             <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>3</span>
-                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Grounder</strong>
+                <span style={{ background: 'rgba(6, 182, 212, 0.2)', color: '#22d3ee', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>3</span>
+                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>GWAS Matcher</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Normalizes trait text to ontology-style labels and IDs.
+                Compares title similarity, author overlap, trait similarity, and file clues.
               </p>
             </div>
 
-            {/* Step 4: Verifier */}
+            {/* Step 4: Trait Grounder */}
             <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <span style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>4</span>
-                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Verifier</strong>
+                <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>4</span>
+                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Trait Grounder</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Checks confidence, ambiguity, provenance completeness, and review status.
+                Ontology mapping; compound/ambiguous traits routed to Gemini for AI decomposition.
               </p>
             </div>
 
-            {/* Step 5: Evidence Clerk */}
+            {/* Step 5: Evidence Verifier */}
             <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <span style={{ background: 'rgba(139, 92, 246, 0.2)', color: '#c084fc', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>5</span>
-                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Evidence Clerk</strong>
+                <span style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>5</span>
+                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Evidence Verifier</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Exports a graph-ready evidence record with provenance and review flags.
+                Combines confidence, grounding, and flags to decide auto-merge vs review.
+              </p>
+            </div>
+
+            {/* Step 6: Recording Clerk */}
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ background: 'rgba(139, 92, 246, 0.2)', color: '#c084fc', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>6</span>
+                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Recording Clerk</strong>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                Emits graph-ready JSON with provenance, scores, flags, and optional AI insights.
               </p>
             </div>
 
@@ -1238,8 +1250,31 @@ export default function App() {
               </span>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.4', marginBottom: '1.25rem' }}>
-              Uses Gemini to generate curator-style semantic reasoning and concept decomposition. Deterministic TraitGraph scores remain the source of truth.
+              Uses Gemini to generate curator-style semantic reasoning and concept decomposition. Note: The deterministic verifier's confidence score remains the absolute source of truth. The Gemini Curation Layer provides optional, unverified AI concept suggestions.
             </p>
+
+            {isTraitAmbiguous && (
+              <div style={{
+                background: 'rgba(139, 92, 246, 0.12)',
+                border: '1px solid rgba(139, 92, 246, 0.4)',
+                borderRadius: '8px',
+                padding: '0.75rem 1.25rem',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                boxShadow: '0 0 15px rgba(139, 92, 246, 0.15)',
+                animation: 'pulseGlow 2s infinite ease-in-out'
+              }}>
+                <span style={{ fontSize: '1.5rem' }}>⚠️</span>
+                <div>
+                  <h5 style={{ color: '#c084fc', fontWeight: '700', fontSize: '0.85rem', margin: 0 }}>Ambiguous Compound Trait Detected!</h5>
+                  <p style={{ color: '#cbd5e1', fontSize: '0.75rem', margin: '0.2rem 0 0 0', lineHeight: '1.3' }}>
+                    The reported trait contains multiple phenotypes or alternative options. Executing the <strong>Live Gemini Biocurator Curation Layer</strong> is highly recommended to perform AI-assisted concept decomposition and semantic mapping.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {aiReport ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
