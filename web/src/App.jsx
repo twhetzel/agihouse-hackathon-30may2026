@@ -12,29 +12,30 @@ import scenario3Prepub from '../../examples/traitgraph_scenario_3_no_match.json'
 const presets = [
   {
     id: 'original',
-    name: 'Original MVP Demo',
+    name: 'Probable Match',
     desc: 'Childhood wheeze/asthma with probable study match & approximate grounding',
     prepub: originalPrepub,
   },
   {
     id: 'scenario-1',
-    name: 'Scenario 1: High Confidence',
+    name: 'High Confidence',
     desc: 'Childhood asthma with identical title/authors/stats-file (100% study match)',
     prepub: scenario1Prepub,
   },
   {
     id: 'scenario-2',
-    name: 'Scenario 2: Ambiguous Trait',
+    name: 'Ambiguous Trait',
     desc: 'wheeze/asthma/allergy mapping to multiple ontology concepts',
     prepub: scenario2Prepub,
   },
   {
     id: 'scenario-3',
-    name: 'Scenario 3: No Catalog Match',
+    name: 'No Confident Match',
     desc: 'Similar title but different cohort/authors (prevents over-matching)',
     prepub: scenario3Prepub,
   }
 ];
+
 
 // ==========================================
 // PURE JAVASCRIPT RECONCILIATION CORE ENGINE
@@ -610,29 +611,54 @@ export default function App() {
       
       {/* HEADER SECTION */}
       <header style={{ marginBottom: '2.5rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '2.2rem' }}>🧬</span>
-              <h1 className="glow-text" style={{ fontSize: '2.2rem', fontWeight: '700', background: 'linear-gradient(to right, #ffffff, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                TraitGraph Live Playground
+              <h1 className="glow-text" style={{ fontSize: '2.5rem', fontWeight: '800', background: 'linear-gradient(to right, #ffffff, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+                TraitGraph
               </h1>
-              <span className="badge badge-auto" style={{ verticalAlign: 'middle', height: 'fit-content' }}>Real-time Curation</span>
+              <span className="badge badge-auto" style={{ verticalAlign: 'middle', height: 'fit-content', fontSize: '0.75rem', padding: '0.3rem 0.75rem' }}>
+                AGENTIC CURATION DEMO
+              </span>
+              <span style={{ 
+                fontSize: '0.8rem', 
+                fontWeight: '600', 
+                color: '#a5b4fc', 
+                border: '1px solid rgba(129, 140, 248, 0.3)', 
+                background: 'rgba(129, 140, 248, 0.1)', 
+                padding: '0.25rem 0.65rem', 
+                borderRadius: '20px' 
+              }}>
+                GWAS Study Matcher + Evidence Verifier
+              </span>
               {apiKey && apiKey !== "your_gemini_api_key_here" ? (
                 <span className="badge" style={{ verticalAlign: 'middle', height: 'fit-content', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-success)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>🧠 Gemini Active</span>
               ) : (
                 <span className="badge" style={{ verticalAlign: 'middle', height: 'fit-content', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent-danger)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>🧠 Gemini Offline</span>
               )}
             </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', maxWidth: '900px', lineHeight: '1.5' }}>
-              Study reconciliation and trait ontology grounding running **live in-browser**. Load a scenario preset, tweak fields inside the playground, and **click the glowing "Run Reconciliation Engine" button** to witness high-performance Jaccard metrics and EFO tags compute with dramatic demo transitions!
+            <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', maxWidth: '850px', lineHeight: '1.5', marginBottom: '1rem' }}>
+              TraitGraph matches messy pre-publication GWAS metadata to curated catalog-style studies, grounds trait labels, verifies uncertainty, and exports provenance-rich evidence records.
             </p>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '15px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-primary)', fontWeight: '500' }}>
+                🔍 Study Matching
+              </span>
+              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '15px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-primary)', fontWeight: '500' }}>
+                🌿 Trait Grounding
+              </span>
+              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '15px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-primary)', fontWeight: '500' }}>
+                🛡️ Evidence Verification
+              </span>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', textAlign: 'center', minWidth: '130px', height: 'fit-content' }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Catalog Studies</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--accent-info)' }}>{mockCatalog.length} records</div>
+            <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', textAlign: 'center', minWidth: '180px', height: 'fit-content' }}>
+              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Demo Catalog</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--accent-info)' }}>{mockCatalog.length} Local Records</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>Live GWAS Catalog integration planned.</div>
             </div>
           </div>
         </div>
@@ -679,6 +705,73 @@ export default function App() {
               </button>
             );
           })}
+        </div>
+      </section>
+
+      {/* WORKFLOW PIPELINE STRIP */}
+      <section style={{ marginBottom: '2.5rem' }}>
+        <div className="glass-panel" style={{ padding: '1.25rem', background: 'rgba(17, 24, 39, 0.45)' }}>
+          <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#a5b4fc', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>📋</span> TraitGraph Curation & Verification Pipeline
+          </h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'start' }}>
+            
+            {/* Step 1: Triager */}
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#a5b4fc', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>1</span>
+                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Triager</strong>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                Extracts title, authors, trait text, cohort, and summary-stat file clues.
+              </p>
+            </div>
+
+            {/* Step 2: Matcher */}
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ background: 'rgba(6, 182, 212, 0.2)', color: '#22d3ee', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>2</span>
+                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Matcher</strong>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                Compares messy pre-publication metadata to catalog-style GWAS records.
+              </p>
+            </div>
+
+            {/* Step 3: Grounder */}
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>3</span>
+                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Grounder</strong>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                Normalizes trait text to ontology-style labels and IDs.
+              </p>
+            </div>
+
+            {/* Step 4: Verifier */}
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>4</span>
+                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Verifier</strong>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                Checks confidence, ambiguity, provenance completeness, and review status.
+              </p>
+            </div>
+
+            {/* Step 5: Evidence Clerk */}
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ background: 'rgba(139, 92, 246, 0.2)', color: '#c084fc', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>5</span>
+                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Evidence Clerk</strong>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                Exports a graph-ready evidence record with provenance and review flags.
+              </p>
+            </div>
+
+          </div>
         </div>
       </section>
 
@@ -963,173 +1056,168 @@ export default function App() {
           )}
 
           {/* study reconciliation outcomes card */}
-            <div className="glass-panel" style={{ padding: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '1.15rem' }}>⚖️</span>
-                  <h3 style={{ fontSize: '1.1rem', color: '#fff', fontWeight: '600' }}>Reconciliation Outcomes</h3>
+          {/* TraitGraph Deterministic Verifier Card */}
+          <div className="glass-panel" style={{ padding: '1.75rem', background: 'rgba(17, 24, 39, 0.45)', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.25rem' }}>🛡️</span>
+                <h3 style={{ fontSize: '1.2rem', color: '#fff', fontWeight: '700' }}>TraitGraph Deterministic Verifier</h3>
+              </div>
+              <span className="badge" style={{ 
+                background: confidenceScore >= 0.70 ? 'rgba(16, 185, 129, 0.1)' : confidenceScore >= 0.40 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                color: getConfidenceColor(confidenceScore),
+                border: `1px solid ${getConfidenceColor(confidenceScore)}`,
+                fontSize: '0.75rem',
+                padding: '0.25rem 0.65rem'
+              }}>
+                {confidenceScore >= 0.70 ? 'Verified' : confidenceScore >= 0.40 ? 'Probable' : 'Blocked'}
+              </span>
+            </div>
+
+            {/* Verification Fields Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+              
+              {/* Left Column: Study Matching Metrics */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#a5b4fc', letterSpacing: '0.05em', fontWeight: '700', marginBottom: '0.25rem' }}>Study Reconciliation</h4>
+                
+                {/* 1. Study Match Status */}
+                <div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Study Match Status</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: matched_catalog_record ? (confidenceScore >= 0.70 ? 'var(--accent-success)' : 'var(--accent-warning)') : 'var(--accent-danger)' }}>
+                    {matched_catalog_record ? (confidenceScore >= 0.70 ? 'Verified (Exact Match) ✅' : 'Probable Match ⚠️') : 'No Confident Match ❌'}
+                  </span>
                 </div>
-                <span className="badge" style={{ 
-                  background: confidenceScore >= 0.70 ? 'rgba(16, 185, 129, 0.1)' : confidenceScore >= 0.40 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                  color: getConfidenceColor(confidenceScore),
-                  border: `1px solid ${getConfidenceColor(confidenceScore)}`,
-                  fontSize: '0.7rem'
-                }}>
-                  {confidenceScore >= 0.70 ? 'High' : confidenceScore >= 0.40 ? 'Probable' : 'No Match'}
-                </span>
+
+                {/* 2. Study Match Confidence */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Study Match Confidence</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: getConfidenceColor(confidenceScore) }}>{confidencePercent}</span>
+                  </div>
+                  <div style={{ width: '100%', height: '5px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: confidencePercent, height: '100%', background: getConfidenceColor(confidenceScore), transition: 'width 0.3s ease' }}></div>
+                  </div>
+                </div>
+
+                {/* 3. Title Similarity / Jaccard score */}
+                <div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Title Similarity / Jaccard Score</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#fff' }}>
+                    {((reconciliation?.scores?.title_similarity ?? 0) * 100).toFixed(0)}%
+                  </span>
+                </div>
+
+                {/* 4. Author Overlap */}
+                <div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Author Overlap</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#fff' }}>
+                    {((reconciliation?.scores?.author_similarity ?? 0) * 100).toFixed(0)}%
+                  </span>
+                </div>
+
+                {/* 5. File Match */}
+                <div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>File Match</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#fff' }}>
+                    {reconciliation?.scores?.file_similarity === 1.0 ? 'Exact Match (1.0) ✅' : reconciliation?.scores?.file_similarity === 0.5 ? 'Partial Match (0.5) ⚠️' : 'No Match (0.0)'}
+                  </span>
+                </div>
               </div>
 
-              {matched_catalog_record ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-                  
-                  {/* Live Jaccard confidence score meter */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                      <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Confidence</span>
-                      <span style={{ fontSize: '1.05rem', fontWeight: '700', color: getConfidenceColor(confidenceScore) }}>{confidencePercent}</span>
-                    </div>
-                    <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ width: confidencePercent, height: '100%', background: getConfidenceColor(confidenceScore), transition: 'width 0.3s ease-in-out', boxShadow: `0 0 10px ${getConfidenceColor(confidenceScore)}` }}></div>
-                    </div>
-                  </div>
+              {/* Right Column: Trait Grounding & Pipeline Status */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#34d399', letterSpacing: '0.05em', fontWeight: '700', marginBottom: '0.25rem' }}>Trait & Pipeline Verification</h4>
 
-                  {/* Score weights list */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem', background: 'rgba(0,0,0,0.15)', padding: '0.5rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)', textAlign: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Title (40%)</div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#fff', marginTop: '0.1rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.title_similarity : 0) * 100).toFixed(0)}%</div>
+                {/* 6. Trait Grounding Status */}
+                <div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Trait Grounding Status</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: normalized_trait?.grounding_type === 'exact' ? 'var(--accent-success)' : normalized_trait?.grounding_type === 'failed' ? 'var(--accent-danger)' : 'var(--accent-warning)' }}>
+                    {normalized_trait?.grounding_type === 'exact' && 'Exact Mapping (MONDO/EFO) ✅'}
+                    {normalized_trait?.grounding_type === 'synonym' && 'Synonym-based, review recommended ⚠️'}
+                    {normalized_trait?.grounding_type === 'approximate' && 'Approximate Mapping, review recommended ⚠️'}
+                    {normalized_trait?.grounding_type === 'ambiguous' && 'Ambiguous, review recommended ⚠️'}
+                    {normalized_trait?.grounding_type === 'failed' && 'Grounding failed, review required ❌'}
+                  </span>
+                  {normalized_trait?.ontology_label && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                      Label: <strong>{normalized_trait.ontology_label}</strong> ({normalized_trait.ontology_id})
                     </div>
-                    <div>
-                      <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Auth (30%)</div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#fff', marginTop: '0.1rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.author_similarity : 0) * 100).toFixed(0)}%</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>File (30%)</div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#fff', marginTop: '0.1rem' }}>{((reconciliation?.confidence_score ? reconciliation.scores?.file_similarity : 0) * 100).toFixed(0)}%</div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Best Reconciled Study</span>
-                    <p style={{ fontSize: '0.95rem', marginTop: '0.2rem', color: '#fff', fontWeight: '500', lineHeight: '1.3' }}>
-                      "{matched_catalog_record.title}"
-                    </p>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                    <div>
-                      <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Accession ID</span>
-                      <p style={{ marginTop: '0.15rem', fontSize: '0.95rem', fontWeight: '700', color: 'var(--accent-primary)' }}>
-                        {matched_catalog_record.catalog_accession}
-                      </p>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>PMID</span>
-                      <p style={{ marginTop: '0.15rem', fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)' }}>
-                        {matched_catalog_record.publication_id}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Explanation</span>
-                    <p style={{ marginTop: '0.15rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.3', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.6rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                      {reconciliation?.explanation}
-                    </p>
-                  </div>
-
+                  )}
                 </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '2rem' }}>❌</span>
-                  <h4 style={{ color: '#ef4444', fontWeight: '600', fontSize: '0.95rem' }}>No Confident Match</h4>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.3' }}>
-                    Overall Jaccard metric is below the 40% threshold ({confidencePercent}). Ingestion blocked.
+
+                {/* 7. Provenance Completeness */}
+                <div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Provenance Completeness</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: matched_catalog_record ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+                    {matched_catalog_record ? 'Complete (Provenance-rich JSON ready) ✅' : 'Incomplete (Blocked Ingestion) ❌'}
+                  </span>
+                </div>
+
+                {/* 8. Manual Review Recommendation */}
+                <div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Manual Review Recommendation</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '700', color: review_flags?.manual_review_required ? 'var(--accent-warning)' : 'var(--accent-success)' }}>
+                    {review_flags?.manual_review_required ? 'Yes (Review Recommended) ⚠️' : 'No (Approved for Auto-Ingestion) ✅'}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Explanation / Reconciled Details */}
+            {matched_catalog_record && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem' }}>
+                <div>
+                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Best Reconciled Study from Demo Catalog</span>
+                  <p style={{ fontSize: '0.85rem', marginTop: '0.15rem', color: '#fff', fontWeight: '600', lineHeight: '1.4' }}>
+                    "{matched_catalog_record.title}"
+                  </p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', marginTop: '0.1rem' }}>
+                    Catalog Accession: <strong>{matched_catalog_record.catalog_accession}</strong> | PMID: <strong>{matched_catalog_record.publication_id}</strong>
                   </p>
                 </div>
-              )}
-            </div>
-
-            {/* ontology grounding outcomes card */}
-            <div className="glass-panel" style={{ padding: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '1.15rem' }}>🧬</span>
-                  <h3 style={{ fontSize: '1.1rem', color: '#fff', fontWeight: '600' }}>Grounding Outcomes</h3>
+                <div>
+                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Deterministic Rationale</span>
+                  <p style={{ marginTop: '0.15rem', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.65rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                    {reconciliation?.explanation}
+                  </p>
                 </div>
-                <span className={`badge ${getGroundingBadgeClass(normalized_trait?.grounding_type)}`} style={{ fontSize: '0.7rem' }}>
-                  {normalized_trait?.grounding_type || 'FAILED'}
-                </span>
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '0.75rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Standardized Label</span>
-                    <p style={{ marginTop: '0.2rem', fontSize: '0.95rem', fontWeight: '600', color: '#fff', lineHeight: '1.3' }}>
-                      {normalized_trait?.ontology_label || 'FAILED MAPPING'}
-                    </p>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Ontology ID</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
-                      <span style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--accent-info)', fontFamily: 'var(--font-mono)' }}>
-                        {normalized_trait?.ontology_id || 'N/A'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Multi-Concept Flag</span>
-                    <p style={{ marginTop: '0.15rem', fontSize: '0.85rem', fontWeight: '600', color: normalized_trait?.contains_multiple_concepts ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
-                      {normalized_trait?.contains_multiple_concepts ? 'YES [Compound] ⚠️' : 'NO [Single] ✅'}
-                    </p>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Curation Action</span>
-                    <p style={{ marginTop: '0.15rem', fontSize: '0.85rem', fontWeight: '600', color: review_flags?.manual_review_required ? 'var(--accent-warning)' : 'var(--accent-success)' }}>
-                      {review_flags?.manual_review_required ? 'Manual Review' : 'Auto Ingestion'}
-                    </p>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
+            )}
+          </div>
 
           {/* review flags action card */}
           <div className="glass-panel" style={{ 
-            padding: '1.5rem 1.75rem', 
+            padding: '1.25rem 1.5rem', 
             borderLeft: review_flags?.manual_review_required ? '4px solid var(--accent-danger)' : '4px solid var(--accent-success)',
             background: review_flags?.manual_review_required ? 'linear-gradient(to right, rgba(239, 68, 68, 0.04), transparent)' : 'linear-gradient(to right, rgba(16, 185, 129, 0.04), transparent)'
           }}>
             {review_flags?.manual_review_required ? (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                  <span style={{ fontSize: '1.25rem' }}>⚠️</span>
-                  <h4 style={{ color: 'var(--accent-danger)', fontWeight: '600' }}>Curation Alert [Manual Review Triggered]</h4>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+                  <h4 style={{ color: 'var(--accent-danger)', fontWeight: '600', fontSize: '0.9rem' }}>Curation Alert [Manual Review Triggered]</h4>
                 </div>
-                <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingLeft: '1.2rem', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.4' }}>
-                  {review_flags.reasons?.map((reason, i) => (
-                    <li key={i} style={{ color: '#fca5a5' }}>• {reason}</li>
+                <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingLeft: '1.2rem', color: '#fca5a5', fontSize: '0.8rem', lineHeight: '1.4' }}>
+                  {review_flags?.reasons?.map((reason, i) => (
+                    <li key={i}>• {reason}</li>
                   ))}
                 </ul>
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '1.5rem', color: 'var(--accent-success)' }}>✅</span>
+                <span style={{ fontSize: '1.3rem', color: 'var(--accent-success)' }}>✅</span>
                 <div>
-                  <h4 style={{ color: 'var(--accent-success)', fontWeight: '600' }}>Ready for Automatic Ingestion</h4>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.15rem' }}>
+                  <h4 style={{ color: 'var(--accent-success)', fontWeight: '600', fontSize: '0.9rem' }}>Ready for Automatic Ingestion</h4>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.15rem' }}>
                     Study reconciliation match meets confidence and grounding is exact. No review reasons triggered.
                   </p>
                 </div>
               </div>
             )}
           </div>
+
 
           {/* GEMINI AI BIOCURATOR CARD */}
           <div className="glass-panel" style={{ 
@@ -1138,15 +1226,20 @@ export default function App() {
             boxShadow: '0 0 20px rgba(139, 92, 246, 0.1)',
             background: 'linear-gradient(to bottom right, rgba(139, 92, 246, 0.03), transparent)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ fontSize: '1.25rem' }}>🧠</span>
-                <h3 style={{ fontSize: '1.2rem', color: '#fff', fontWeight: '600' }}>Live Gemini Biocurator Report</h3>
+                <h3 style={{ fontSize: '1.2rem', color: '#fff', fontWeight: '600' }}>
+                  {aiReport ? "Live Gemini Biocurator Report" : "Live Gemini Biocurator (Optional)"}
+                </h3>
               </div>
-              <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+              <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', border: '1px solid rgba(139, 92, 246, 0.3)', fontSize: '0.7rem' }}>
                 gemini-2.5-flash
               </span>
             </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.4', marginBottom: '1.25rem' }}>
+              Uses Gemini to generate curator-style semantic reasoning and concept decomposition. Deterministic TraitGraph scores remain the source of truth.
+            </p>
 
             {aiReport ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -1310,10 +1403,19 @@ export default function App() {
 
           {/* json payload output */}
           <div className="glass-panel" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '1.25rem' }}>📁</span>
-                <h3 style={{ fontSize: '1.2rem', color: '#fff' }}>Graph Node Evidentiary Record Preview</h3>
+                <h3 style={{ fontSize: '1.2rem', color: '#fff', marginRight: '0.5rem' }}>Graph Node Evidentiary Record Preview</h3>
+                {compiledGraph.ai_insights ? (
+                  <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', border: '1px solid rgba(139, 92, 246, 0.3)', fontSize: '0.65rem', textTransform: 'none', padding: '0.2rem 0.5rem' }}>
+                    ⚠️ Deterministic + AI Insights (AI-Generated & Unverified)
+                  </span>
+                ) : (
+                  <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-success)', border: '1px solid rgba(16, 185, 129, 0.3)', fontSize: '0.65rem', textTransform: 'none', padding: '0.2rem 0.5rem' }}>
+                    ✅ Deterministic Core Output
+                  </span>
+                )}
               </div>
               <button 
                 onClick={copyToClipboard}
@@ -1377,7 +1479,7 @@ export default function App() {
 
       {/* FOOTER */}
       <footer style={{ marginTop: '4rem', borderTop: '1px solid var(--border-glass)', paddingTop: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-        TraitGraph Curation Playground • Real-time Deterministic Client Engine • Hackathon Presentation Grade
+        TraitGraph • Local Verification Demo • Antigravity-Ready Custom Skill
       </footer>
 
     </div>
