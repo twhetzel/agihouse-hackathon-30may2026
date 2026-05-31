@@ -1200,7 +1200,7 @@ export default function App() {
                   <h4 style={{ color: 'var(--accent-danger)', fontWeight: '600', fontSize: '0.9rem' }}>Curation Alert [Manual Review Triggered]</h4>
                 </div>
                 <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingLeft: '1.2rem', color: '#fca5a5', fontSize: '0.8rem', lineHeight: '1.4' }}>
-                  {review_flags.reasons?.map((reason, i) => (
+                  {review_flags?.reasons?.map((reason, i) => (
                     <li key={i}>• {reason}</li>
                   ))}
                 </ul>
