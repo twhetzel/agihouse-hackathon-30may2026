@@ -1,6 +1,6 @@
 {
     "graph_schema_version": "1.0.0",
-    "entity_id": "traitgraph-node-dd1abdac-ca11-4cb7-b632-2a9cd31fadab",
+    "entity_id": "traitgraph-node-a81b799a-4b60-4703-827e-e6bd59dc6384",
     "submitted_metadata": {
         "source_type": "prepublication_summary_statistics_metadata",
         "title": "Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma",
@@ -62,8 +62,8 @@
     "provenance": {
         "tool_name": "TraitGraph GWAS Reconciler MVP",
         "tool_version": "0.1.0",
-        "timestamp": "2026-05-31T00:41:33.649200Z",
-        "run_id": "106e9367-8988-40bd-aadf-eb2de7fba85c"
+        "timestamp": "2026-05-31T18:56:36.354742Z",
+        "run_id": "3e22e304-c698-42a9-9ea9-6f41fd8fb9da"
     },
     "review_flags": {
         "manual_review_required": true,
