@@ -36,6 +36,12 @@ const presets = [
   }
 ];
 
+function formatVerificationModeLabel(mode) {
+  if (mode === 'local_demo_fallback') return 'Demo';
+  if (mode === 'live') return 'Live';
+  if (mode === 'unavailable') return 'Unavailable';
+  return mode?.replace(/_/g, ' ') || 'Unavailable';
+}
 
 // ==========================================
 // PURE JAVASCRIPT RECONCILIATION CORE ENGINE
@@ -726,7 +732,7 @@ export default function App() {
                 color: openAlexMode === 'live' ? 'var(--accent-success)' : openAlexMode === 'local_demo_fallback' ? '#a5b4fc' : 'var(--accent-danger)',
                 border: openAlexMode === 'live' ? '1px solid rgba(16, 185, 129, 0.3)' : openAlexMode === 'local_demo_fallback' ? '1px solid rgba(129, 140, 248, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)'
               }}>
-                📚 OpenAlex: {openAlexMode === 'local_demo_fallback' ? 'fallback' : openAlexMode}
+                📚 OpenAlex: {formatVerificationModeLabel(openAlexMode)}
               </span>
 
               <span className="badge" style={{ 
@@ -736,7 +742,7 @@ export default function App() {
                 color: litMode === 'live' ? 'var(--accent-success)' : litMode === 'local_demo_fallback' ? '#a5b4fc' : 'var(--accent-danger)',
                 border: litMode === 'live' ? '1px solid rgba(16, 185, 129, 0.3)' : litMode === 'local_demo_fallback' ? '1px solid rgba(129, 140, 248, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)'
               }}>
-                📖 Literature: {litMode === 'local_demo_fallback' ? 'fallback' : litMode}
+                📖 Literature: {formatVerificationModeLabel(litMode)}
               </span>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', maxWidth: '850px', lineHeight: '1.5', marginBottom: '1rem' }}>
@@ -835,7 +841,7 @@ export default function App() {
                 <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Literature + OpenAlex Verifier</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Science Skills OpenAlex and literature verifications, local fallback in demo.
+                Science Skills OpenAlex and literature verifications; demo uses local mocks.
               </p>
             </div>
 
