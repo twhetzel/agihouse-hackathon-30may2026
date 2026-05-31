@@ -1112,7 +1112,7 @@ export default function App() {
                 <div>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Author Overlap</span>
                   <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#fff' }}>
-                    {((reconciliation?.confidence_score ? reconciliation.scores?.author_similarity : 0) * 100).toFixed(0)}%
+                    {((reconciliation?.scores?.author_similarity ?? 0) * 100).toFixed(0)}%
                   </span>
                 </div>
 
