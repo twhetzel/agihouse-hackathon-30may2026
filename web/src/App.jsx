@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { generateBiocuratorReport } from './gemini';
+import { runLiveVerifications, groundTraitWithLiveApis } from './liveApis';
 
 // Import RAW inputs and resources
 import mockCatalog from '../../resources/traitgraph_mock_catalog_records.json';
@@ -36,6 +37,15 @@ const presets = [
   }
 ];
 
+function formatVerificationModeLabel(mode) {
+  if (mode === 'local_demo_fallback') return 'Demo';
+  if (mode === 'live') return 'Live';
+  if (mode === 'unavailable' || !mode) return 'Unavailable';
+  if (typeof mode === 'string') {
+    return mode.replace(/_/g, ' ');
+  }
+  return 'Unavailable';
+}
 
 // ==========================================
 // PURE JAVASCRIPT RECONCILIATION CORE ENGINE
@@ -315,7 +325,7 @@ function generateUUID(seed) {
   return `traitgraph-node-7b02-${val}-adea-${val % 100}d56ade33495`;
 }
 
-function compileGraphReadyJson(prepubData, matchResult, groundingResult, seed = "demo") {
+function compileGraphReadyJson(prepubData, matchResult, groundingResult, seed = "demo", externalVerificationInput = null) {
   const reviewReasons = [];
   
   const bestMatch = matchResult.best_match;
@@ -343,83 +353,24 @@ function compileGraphReadyJson(prepubData, matchResult, groundingResult, seed = 
   // Deduplicate
   const uniqueReasons = [...new Set(reviewReasons)];
   
-  // Check 3: External Publication & Literature Grounding Verifications
-  const trait = (prepubData?.reported_trait || "").toLowerCase().trim();
-  let externalVerification = {};
-  if (!bestMatch) {
-    externalVerification = {
-      openalex_publication_verification: {
-        mode: "local_demo_fallback",
-        publication_match_status: "not_verified",
-        title_verified: false,
-        author_overlap_verified: false,
-        source: "OpenAlex local mock",
-        evidence_summary: "No matching publication found in OpenAlex catalog under these author lists."
-      },
-      literature_evidence_verification: {
-        mode: "local_demo_fallback",
-        evidence_status: "does_not_support",
-        source: "Literature Science Skill local mock",
-        evidence_summary: "No publication matches the prepublication study title and authors. Literature evidence does not support matching.",
-        review_impact: "supports_do_not_merge"
-      }
-    };
-  } else if (trait === "wheeze/asthma/allergy") {
-    externalVerification = {
-      openalex_publication_verification: {
-        mode: "local_demo_fallback",
-        publication_match_status: "verified",
-        title_verified: true,
-        author_overlap_verified: true,
-        source: "OpenAlex local mock",
-        evidence_summary: "Preprint paper verified on OpenAlex with matched metadata."
-      },
-      literature_evidence_verification: {
-        mode: "local_demo_fallback",
-        evidence_status: "supports_review",
-        source: "Literature Science Skill local mock",
-        evidence_summary: "Study exists in literature database, but trait 'wheeze/asthma/allergy' is compound, requiring biocurator review.",
-        review_impact: "supports_curator_review"
-      }
-    };
-  } else if (isExactStudy || confidenceScore >= 0.95) {
-    externalVerification = {
-      openalex_publication_verification: {
-        mode: "local_demo_fallback",
-        publication_match_status: "verified",
-        title_verified: true,
-        author_overlap_verified: true,
-        source: "OpenAlex local mock",
-        evidence_summary: "Perfect title match and high author list overlap (100%) verified in OpenAlex catalog."
-      },
-      literature_evidence_verification: {
-        mode: "local_demo_fallback",
-        evidence_status: "supports_match",
-        source: "Literature Science Skill local mock",
-        evidence_summary: "Preprint matched fully to published paper in EuropePMC/PubMed with identical cohorts and sample sizes.",
-        review_impact: "supports_auto_merge"
-      }
-    };
-  } else {
-    externalVerification = {
-      openalex_publication_verification: {
-        mode: "local_demo_fallback",
-        publication_match_status: "partially_verified",
-        title_verified: true,
-        author_overlap_verified: false,
-        source: "OpenAlex local mock",
-        evidence_summary: "Title token Jaccard similarity is high, but author list verification has minor mismatch."
-      },
-      literature_evidence_verification: {
-        mode: "local_demo_fallback",
-        evidence_status: "supports_review",
-        source: "Literature Science Skill local mock",
-        evidence_summary: "Paper identified in OpenAlex/EuropePMC, but reported trait has ambiguous mapping, requiring manual review.",
-        review_impact: "supports_curator_review"
-      }
-    };
-  }
-  
+  const externalVerification = externalVerificationInput || {
+    openalex_publication_verification: {
+      mode: "unavailable",
+      publication_match_status: "not_verified",
+      title_verified: false,
+      author_overlap_verified: false,
+      source: "OpenAlex API",
+      evidence_summary: "External verification not run.",
+    },
+    literature_evidence_verification: {
+      mode: "unavailable",
+      evidence_status: "does_not_support",
+      source: "Europe PMC REST API",
+      evidence_summary: "Literature verification not run.",
+      review_impact: "supports_curator_review",
+    },
+  };
+
   return {
     graph_schema_version: "1.0.0",
     entity_id: generateUUID(prepubData.title || seed),
@@ -435,7 +386,9 @@ function compileGraphReadyJson(prepubData, matchResult, groundingResult, seed = 
       ontology_id: groundingResult.ontology_id,
       ontology_label: groundingResult.ontology_label,
       grounding_type: groundingResult.grounding_type,
-      contains_multiple_concepts: groundingResult.contains_multiple_concepts
+      contains_multiple_concepts: groundingResult.contains_multiple_concepts,
+      grounding_source: groundingResult.grounding_source || "local_lookup",
+      ols_iri: groundingResult.ols_iri || null,
     },
     external_verification: externalVerification,
     provenance: {
@@ -451,8 +404,8 @@ function compileGraphReadyJson(prepubData, matchResult, groundingResult, seed = 
   };
 }
 
-// Helper to run full calculations on inputs
-function runEngineCalculations(titleVal, traitVal, fileVal, authVal, cVal, pVal, nVal, seed) {
+// Helper to run full calculations on inputs (local catalog + live OpenAlex / Europe PMC / OLS)
+async function runEngineCalculations(titleVal, traitVal, fileVal, authVal, cVal, pVal, nVal, seed) {
   const currentPrepubData = {
     source_type: "prepublication_summary_statistics_metadata",
     title: titleVal,
@@ -463,10 +416,18 @@ function runEngineCalculations(titleVal, traitVal, fileVal, authVal, cVal, pVal,
     cohort: cVal,
     notes: nVal
   };
-  const matchResult = reconcilePrepubMetadata(currentPrepubData, mockCatalog);
-  const groundingResult = groundTraitLocally(traitVal);
-  const graphJson = compileGraphReadyJson(currentPrepubData, matchResult, groundingResult, seed);
-  return graphJson;
+  const [matchResult, groundingResult, externalVerification] = await Promise.all([
+    Promise.resolve(reconcilePrepubMetadata(currentPrepubData, mockCatalog)),
+    groundTraitWithLiveApis(traitVal, groundTraitLocally),
+    runLiveVerifications(currentPrepubData),
+  ]);
+  return compileGraphReadyJson(
+    currentPrepubData,
+    matchResult,
+    groundingResult,
+    seed,
+    externalVerification
+  );
 }
 
 export default function App() {
@@ -500,6 +461,7 @@ export default function App() {
   const [aiReport, setAiReport] = useState(null);
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [aiError, setAiError] = useState(null);
+  const [reconcileError, setReconcileError] = useState(null);
 
   // TIMEOUT REF FOR RECONCILER PIPELINE
   const reconciliationTimeoutRef = useRef(null);
@@ -529,8 +491,9 @@ export default function App() {
       setAiReport(null);
       setAiError(null);
 
-      // Compile immediately on preset load
-      const initialGraph = runEngineCalculations(
+      setIsReconciling(true);
+      setReconcileError(null);
+      runEngineCalculations(
         preset.prepub.title || '',
         preset.prepub.reported_trait || '',
         preset.prepub.summary_stats_file || '',
@@ -539,9 +502,13 @@ export default function App() {
         preset.prepub.preprint_or_submission_id || '',
         preset.prepub.notes || '',
         selectedPresetId
-      );
-      setCompiledGraph(initialGraph);
-      setIsDirty(false);
+      )
+        .then((initialGraph) => {
+          setCompiledGraph(initialGraph);
+          setIsDirty(false);
+        })
+        .catch((err) => setReconcileError(err.message || String(err)))
+        .finally(() => setIsReconciling(false));
     }
   }, [selectedPresetId]);
 
@@ -554,20 +521,19 @@ export default function App() {
     setAiError(null);
   };
 
-  // PUSH BUTTON TO RUN ENGINE (WITH A BEAUTIFUL GRAPHIC LOAD SHIFT)
-  const handleRunReconciler = () => {
+  const handleRunReconciler = async () => {
     setIsReconciling(true);
-    // Clear AI reports when re-running local reconciler
     setAiReport(null);
     setAiError(null);
-    
+    setReconcileError(null);
+
     if (reconciliationTimeoutRef.current) {
       clearTimeout(reconciliationTimeoutRef.current);
+      reconciliationTimeoutRef.current = null;
     }
-    
-    // Simulate high-performance metadata reconciliation pipeline processing
-    reconciliationTimeoutRef.current = setTimeout(() => {
-      const finalGraph = runEngineCalculations(
+
+    try {
+      const finalGraph = await runEngineCalculations(
         title,
         reportedTrait,
         summaryStatsFile,
@@ -578,10 +544,12 @@ export default function App() {
         selectedPresetId
       );
       setCompiledGraph(finalGraph);
-      setIsReconciling(false);
       setIsDirty(false);
-      reconciliationTimeoutRef.current = null;
-    }, 850);
+    } catch (err) {
+      setReconcileError(err.message || String(err));
+    } finally {
+      setIsReconciling(false);
+    }
   };
 
   // EXECUTE LIVE GEMINI API BIOCURATOR REPORT (gemini-2.5-flash)
@@ -680,6 +648,7 @@ export default function App() {
   const isTraitAmbiguous = normalized_trait?.contains_multiple_concepts || normalized_trait?.grounding_type === 'ambiguous';
   const openAlexMode = compiledGraph?.external_verification?.openalex_publication_verification?.mode || 'unavailable';
   const litMode = compiledGraph?.external_verification?.literature_evidence_verification?.mode || 'unavailable';
+  const olsMode = compiledGraph?.normalized_trait?.grounding_source === 'ols_live' ? 'live' : 'local_lookup';
 
   const getConfidenceColor = (score) => {
     if (score >= 0.70) return 'var(--accent-success)';
@@ -700,7 +669,7 @@ export default function App() {
                 TraitGraph
               </h1>
               <span className="badge badge-auto" style={{ verticalAlign: 'middle', height: 'fit-content', fontSize: '0.75rem', padding: '0.3rem 0.75rem' }}>
-                AGENTIC CURATION DEMO
+                LIVE API CURATION
               </span>
               <span style={{ 
                 fontSize: '0.8rem', 
@@ -726,7 +695,7 @@ export default function App() {
                 color: openAlexMode === 'live' ? 'var(--accent-success)' : openAlexMode === 'local_demo_fallback' ? '#a5b4fc' : 'var(--accent-danger)',
                 border: openAlexMode === 'live' ? '1px solid rgba(16, 185, 129, 0.3)' : openAlexMode === 'local_demo_fallback' ? '1px solid rgba(129, 140, 248, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)'
               }}>
-                📚 OpenAlex: {openAlexMode === 'local_demo_fallback' ? 'fallback' : openAlexMode}
+                📚 OpenAlex: {formatVerificationModeLabel(openAlexMode)}
               </span>
 
               <span className="badge" style={{ 
@@ -736,7 +705,17 @@ export default function App() {
                 color: litMode === 'live' ? 'var(--accent-success)' : litMode === 'local_demo_fallback' ? '#a5b4fc' : 'var(--accent-danger)',
                 border: litMode === 'live' ? '1px solid rgba(16, 185, 129, 0.3)' : litMode === 'local_demo_fallback' ? '1px solid rgba(129, 140, 248, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)'
               }}>
-                📖 Literature: {litMode === 'local_demo_fallback' ? 'fallback' : litMode}
+                📖 Europe PMC: {formatVerificationModeLabel(litMode)}
+              </span>
+
+              <span className="badge" style={{ 
+                verticalAlign: 'middle', 
+                height: 'fit-content', 
+                background: olsMode === 'live' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                color: olsMode === 'live' ? 'var(--accent-success)' : '#a5b4fc',
+                border: olsMode === 'live' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(129, 140, 248, 0.3)'
+              }}>
+                🌿 OLS: {olsMode === 'live' ? 'Live' : 'Local'}
               </span>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', maxWidth: '850px', lineHeight: '1.5', marginBottom: '1rem' }}>
@@ -835,7 +814,7 @@ export default function App() {
                 <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Literature + OpenAlex Verifier</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Science Skills OpenAlex and literature verifications, local fallback in demo.
+                Live OpenAlex + Europe PMC title/author verification on every reconcile run.
               </p>
             </div>
 
@@ -857,7 +836,7 @@ export default function App() {
                 <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Trait Grounder</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Ontology mapping; compound/ambiguous traits routed to Gemini for AI decomposition.
+                Live OLS (EFO/MONDO) for simple traits; compound traits use local rules + Gemini.
               </p>
             </div>
 
@@ -1128,7 +1107,7 @@ export default function App() {
               {isReconciling ? (
                 <>
                   <svg style={{ animation: 'spin 1s linear infinite' }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
-                  Processing GWAS Metadata...
+                  Calling OpenAlex, Europe PMC, OLS…
                 </>
               ) : (
                 <>
@@ -1137,6 +1116,12 @@ export default function App() {
                 </>
               )}
             </button>
+
+            {reconcileError && (
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--accent-danger)' }}>
+                Reconciliation failed: {reconcileError}
+              </p>
+            )}
 
           </form>
         </div>
@@ -1163,7 +1148,7 @@ export default function App() {
             }}>
               <svg style={{ animation: 'spin 1.5s linear infinite' }} width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
               <h3 className="glow-text" style={{ color: 'var(--accent-primary)', fontWeight: '700', fontSize: '1.3rem' }}>Processing Curation Pipeline</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Aligning Jaccard title vectors & mapping ontology graphs...</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>OpenAlex · Europe PMC · OLS · local catalog matcher…</p>
             </div>
           )}
 
@@ -1254,6 +1239,9 @@ export default function App() {
                   {normalized_trait?.ontology_label && (
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                       Label: <strong>{normalized_trait.ontology_label}</strong> ({normalized_trait.ontology_id})
+                      {normalized_trait.grounding_source === 'ols_live' && (
+                        <span style={{ marginLeft: '0.35rem', color: 'var(--accent-success)' }}>· OLS live</span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1341,6 +1329,18 @@ export default function App() {
                   <div>Title Match: <strong>{compiledGraph.external_verification?.openalex_publication_verification?.title_verified ? "Verified ✓" : "Failed ✗"}</strong></div>
                   <div>Author Overlap: <strong>{compiledGraph.external_verification?.openalex_publication_verification?.author_overlap_verified ? "Verified ✓" : "Failed ✗"}</strong></div>
                   <div>Source: <span style={{ color: 'var(--text-muted)' }}>{compiledGraph.external_verification?.openalex_publication_verification?.source}</span></div>
+                  {compiledGraph.external_verification?.openalex_publication_verification?.openalex_url && (
+                    <div>
+                      <a
+                        href={compiledGraph.external_verification.openalex_publication_verification.openalex_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: '#38bdf8', fontSize: '0.75rem' }}
+                      >
+                        View on OpenAlex ↗
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
@@ -1698,7 +1698,7 @@ export default function App() {
 
       {/* FOOTER */}
       <footer style={{ marginTop: '4rem', borderTop: '1px solid var(--border-glass)', paddingTop: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-        TraitGraph • Local Verification Demo • Antigravity-Ready Custom Skill
+        TraitGraph • Live OpenAlex · Europe PMC · OLS · Gemini • Mock GWAS Catalog
       </footer>
 
     </div>
