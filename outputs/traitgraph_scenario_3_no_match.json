@@ -1,6 +1,6 @@
 {
     "graph_schema_version": "1.0.0",
-    "entity_id": "traitgraph-node-59e7b739-6eee-44f8-91b3-73a3aac436a5",
+    "entity_id": "traitgraph-node-b8b74dfd-8d78-46e6-b8f7-cfa292ba7e19",
     "submitted_metadata": {
         "source_type": "prepublication_summary_statistics_metadata",
         "title": "Genetic risk factors for childhood-onset and adult-onset asthma in a cohort of Latin American individuals",
@@ -47,8 +47,8 @@
     "provenance": {
         "tool_name": "TraitGraph GWAS Reconciler MVP",
         "tool_version": "0.1.0",
-        "timestamp": "2026-05-31T00:41:33.651364Z",
-        "run_id": "7fda8eb8-892b-441d-a421-516d01fca68d"
+        "timestamp": "2026-05-31T18:56:36.357163Z",
+        "run_id": "ac60af49-7241-4599-93b4-a75cb6cfd529"
     },
     "review_flags": {
         "manual_review_required": true,

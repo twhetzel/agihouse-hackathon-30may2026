@@ -1,300 +1,256 @@
 # TraitGraph
 
-**TraitGraph** is a high-performance metadata curation and ingestion pipeline designed to reconcile messy, pre-publication GWAS (Genome-Wide Association Studies) summary-statistics metadata with published, curated records. It normalizes reported trait definitions to standardized medical ontologies (e.g. EFO, MONDO), constructs rich provenance trails, and outputs graph-ready JSON representations optimized for Knowledge Graph (KG) integration.
+**TraitGraph** is a metadata curation and ingestion pipeline that reconciles messy, pre-publication GWAS (Genome-Wide Association Studies) summary-statistics metadata with published, curated records. It normalizes reported trait definitions to standardized medical ontologies (e.g. EFO, MONDO), constructs provenance trails, and outputs graph-ready JSON for Knowledge Graph (KG) integration.
 
-This repository implements the **first local, deterministic MVP** designed specifically for presentation-grade reliability during hackathons. It operates entirely locally without external network API requirements.
+This repository ships two complementary surfaces:
+
+| Surface | Network | Role |
+|---------|---------|------|
+| **Python CLI** (`.agent/skills/.../reconcile_gwas.py`) | Fully offline | Deterministic reconciliation, local ontology lookup, batch demo scenarios → `outputs/` |
+| **Web curation playground** (`web/`) | Optional live APIs | Interactive UI with in-browser matching, OpenAlex / Europe PMC / OLS verification, and optional Gemini biocuration |
+
+The Python engine is the **source of truth** for deterministic scores and ontology IDs. Live API and Gemini layers in the web UI provide supplementary evidence and AI-suggested insights, always labeled as unverified when not grounded locally.
+
+For the six-stage Managed Agents orchestration model (Triager → Recording Clerk), see [AGENTS.md](AGENTS.md).
 
 ---
 
-## Architecture Overview
+## Repository layout
 
-The system consists of three modular pipelines:
+```
+agihouse-hackathon-30may2026/
+├── src/traitgraph/              # Core Python modules (reconcile, grounding, export)
+├── examples/                    # Messy pre-publication metadata inputs (4 scenarios)
+├── resources/
+│   └── traitgraph_mock_catalog_records.json   # Mock curated GWAS catalog
+├── outputs/                     # Graph-ready JSON from the CLI driver (regenerated on run)
+├── web/                         # Vite + React curation dashboard
+├── .agent/skills/traitgraph-gwas-reconciler/
+│   ├── SKILL.md                 # Agent skill profile
+│   ├── skill.yaml               # Skill manifest
+│   └── scripts/reconcile_gwas.py  # CLI demo driver
+└── AGENTS.md                    # Managed Agents architecture & safety rules
+```
 
-![TraitGraph Architecture Diagram](resources/architecture_diagram.png)
+---
 
-<details>
-<summary>🔍 Click to view editable Mermaid Diagram Source</summary>
+## Architecture overview
+
+The deterministic core is implemented as three Python modules, orchestrated by the CLI driver and mirrored in JavaScript inside the web app:
 
 ```mermaid
 graph TD
-    subgraph "Pipeline Inputs"
-        PrePub["Pre-publication Metadata (Messy)"]
-        Catalog["Mock Curated Catalog"]
+    subgraph "Pipeline inputs"
+        PrePub["Pre-publication metadata (examples/)"]
+        Catalog["Mock curated catalog (resources/)"]
     end
 
-    subgraph "TraitGraph Curation Playground"
-        Reconcile["1. Deterministic Reconciliation Engine"]
-        Grounding["2. Deterministic Grounding Engine"]
-        Gemini["3. Live Gemini 2.5 Flash Biocurator (Audit)"]
-        Export["4. Evidentiary Graph JSON Exporter"]
+    subgraph "Deterministic core (Python + web JS)"
+        Reconcile["1. Reconciliation engine"]
+        Grounding["2. Ontology grounding engine"]
+        Export["3. Graph JSON exporter"]
     end
 
-    subgraph "Pipeline Outputs"
-        GraphReady["Reconciled Graph-Ready Node (with AI Curation Insights)"]
+    subgraph "Web-only optional layers"
+        LitVerify["OpenAlex + Europe PMC verification"]
+        OLS["OLS live lookup (simple traits)"]
+        Gemini["Gemini 2.5 Flash biocurator audit"]
+    end
+
+    subgraph "Outputs"
+        GraphReady["Graph-ready JSON + review flags"]
     end
 
     PrePub --> Reconcile
     Catalog --> Reconcile
-    PrePub -.-> Grounding
+    PrePub --> Grounding
     Reconcile --> Export
     Grounding --> Export
-    Reconcile -->|Data & Scores| Gemini
-    Grounding -->|Decomposed Phenotypes| Gemini
-    Gemini -->|AI Curation Insights| Export
+    Reconcile -.-> LitVerify
+    Grounding -.-> OLS
+    Reconcile -.-> Gemini
+    Grounding -.-> Gemini
+    LitVerify -.-> GraphReady
+    OLS -.-> GraphReady
+    Gemini -.-> GraphReady
     Export --> GraphReady
 ```
 
-</details>
+### 1. Reconciliation engine (`src/traitgraph/reconcile.py`)
 
-1. **Reconciliation Engine (`src/traitgraph/reconcile.py`)**:
-   - Calculates **Jaccard Title Similarity** by tokenizing study titles (removing common stopwords).
-   - Computes **Author Overlap** by normalizing spelling, spaces, and punctuation (e.g. "Smith J." vs "Smith J") and checking overlapping coverage.
-   - Checks **Data File Overlap** to flag identical datasets.
-   - Outputs a weighted overall confidence score (40% Title, 30% Authors, 30% Filename similarity).
+- **Jaccard title similarity** on tokenized study titles (stopwords removed).
+- **Author overlap** with normalized spelling and punctuation.
+- **Summary statistics filename** similarity.
+- Weighted confidence score: 40% title, 30% authors, 30% filename.
 
-2. **Local Ontology Grounding (`src/traitgraph/ontology_grounding.py`)**:
-   - Evaluates strings for compound concepts (such as slashes `/`, commas `,`, and `"and"` conjunctions).
-   - Deterministically maps traits against a local lookup table to assign standard Experimental Factor Ontology (EFO) / MONDO identifiers.
-   - Automatically raises review indicators for synonyms, approximate matches, or completely unknown strings.
+### 2. Local ontology grounding (`src/traitgraph/ontology_grounding.py`)
 
-3. **Graph JSON Exporter (`src/traitgraph/export.py`)**:
-   - Preserves all raw user inputs exactly.
-   - Compiles reconciliation confidence reports, matched catalog schemas, normalized ontology terms, and granular manual review flags.
-   - Embeds exhaustive runtime metadata headers (ISO timestamps, tool versions, run UUIDs).
+- Detects compound traits (slashes, commas, `"and"`).
+- Maps against a local lookup table to EFO / MONDO IDs.
+- Flags synonyms, approximate matches, ambiguous multi-concept strings, and unknown terms for curator review.
+
+### 3. Graph JSON exporter (`src/traitgraph/export.py`)
+
+- Preserves raw submitted metadata.
+- Embeds reconciliation results, normalized traits, review flags, and runtime provenance (timestamps, run metadata).
 
 ---
 
-## Live Gemini AI Biocurator Flow 🧠
+## Live Gemini biocurator flow (web)
 
-To complement our deterministic matching, the dashboard supports executing an **AI-powered curation audit** using the live **Gemini 2.5 Flash** API via the official `@google/genai` client:
-
-![Live Gemini AI Curation Flow](resources/gemini_curation_flow.png)
+Optional AI curation runs only from the web dashboard when `VITE_GEMINI_API_KEY` is set. Deterministic scores remain authoritative.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Curator as Ingestion Curator
-    participant UI as Curation Dashboard (Vite React)
-    participant Engine as Local Deterministic Engine
-    participant Gemini as Google Gemini 2.5 Flash API
+    actor Curator as Curator
+    participant UI as Curation dashboard (Vite React)
+    participant Engine as Local deterministic engine
+    participant Live as OpenAlex / Europe PMC / OLS
+    participant Gemini as Gemini 2.5 Flash API
 
-    Curator->>UI: Select Preset Scenario or Edit Metadata
-    UI->>Engine: Run Keystroke-Level Curation Calculations
-    Engine-->>UI: Return Local Scores (Jaccard, Author Overlap) & EFO Tags
-    UI-->>Curator: Render Live Metrics & Grounded Badges
-    
-    Note over Curator, UI: Live Curation Audit Phase
-    Curator->>UI: Click "Execute Live Gemini Biocurator Report"
-    UI->>UI: Read secure git-ignored apiKey (web/.env.local)
-    UI->>Gemini: Call ai.models.generateContent({model: 'gemini-2.5-flash'}) with curation prompt
-    Note right of Gemini: Strict Constraints:<br/>- No PMIDs/GCST hallucinations<br/>- Suggested IDs marked as 'ai_suggested_not_verified'
-    Gemini-->>UI: Return Strict Structured JSON (Decomposed Phenotypes, Recommendations, Uncertainties)
-    UI->>UI: Append 'ai_insights' block to evidentiary Graph node JSON
-    UI-->>Curator: Render gorgeous Live Curation Insight cards!
+    Curator->>UI: Select preset or edit metadata
+    UI->>Engine: Reconcile against mock catalog
+    UI->>Live: Verify publication & trait (when online)
+    Engine-->>UI: Scores, EFO/MONDO tags, review flags
+    UI-->>Curator: Metrics and grounding badges
+
+    opt Gemini API key configured
+        Curator->>UI: Execute Live Gemini Biocurator Report
+        UI->>Gemini: Structured curation prompt (no invented PMIDs/GCST)
+        Gemini-->>UI: AI-suggested concepts (labeled not verified)
+        UI-->>Curator: Curation insight cards
+    end
 ```
 
----
+**Safety constraints** (see also [AGENTS.md](AGENTS.md)):
 
-## Hackathon Stack Alignment
-
-TraitGraph is architected to align with the core technologies of the hackathon ecosystem:
-
-* **Antigravity**: Developed using the Antigravity developer tools and packaged as a custom workspace skill.
-* **Managed Agents API**: Structured in compliance with managed agent architectures, utilizing:
-  * [AGENTS.md](AGENTS.md) detailing the 6-stage multi-agent orchestration (Triager, Literature Grounder, GWAS Study Matcher, Trait Grounder, Evidence Verifier, and Recording Clerk).
-  * [SKILL.md](.agent/skills/traitgraph-gwas-reconciler/SKILL.md) outlining human-readable skill profiles.
-  * [skill.yaml](.agent/skills/traitgraph-gwas-reconciler/skill.yaml) detailing the lightweight custom skill manifest and CLI entrypoint.
-* **Gemini API**: Leveraged live using the `gemini-2.5-flash` model for AI-assisted semantic curation, concept decomposition, and biocurator reasoning when ambiguous compound traits are detected.
-* **Science Skills**: Engineered to support integration with literature/OpenAlex Science Skills (`literature-search-openalex`, `literature-search-europepmc`, `pubmed-database`) for publication matching, using high-fidelity local fallback mocks in the current demo.
-
-### Future Extensions (Out of Scope for Demo)
-
-The following capabilities are planned as future extensions and are *not* implemented in the active demo to maintain high performance and codebase stability:
-- **ClinVar, UniProt, or AlphaFold**: Integrating structural variant, protein impact, and predicted structure analyses.
-- **Live GWAS Catalog API**: Real-time study search and catalog validation.
-- **Live OLS (Ontology Lookup Service) API**: Dynamic external ontology validation.
+- Do not treat Gemini-suggested ontology IDs or accessions as verified.
+- Local deterministic match scores and mock-catalog IDs are the ingestion source of truth.
 
 ---
 
-## Quick Start
+## Hackathon stack alignment
+
+- **Antigravity**: Workspace skill under `.agent/skills/traitgraph-gwas-reconciler/`.
+- **Managed Agents API**: [AGENTS.md](AGENTS.md) maps the pipeline to six agents; [SKILL.md](.agent/skills/traitgraph-gwas-reconciler/SKILL.md) and [skill.yaml](.agent/skills/traitgraph-gwas-reconciler/skill.yaml) define the reconciler skill.
+- **Gemini API**: `gemini-2.5-flash` via `@google/genai` in `web/src/gemini.js` for optional semantic decomposition.
+- **Science Skills**: The web app calls **OpenAlex** and **Europe PMC** REST APIs directly (`web/src/liveApis.js`) as demo routing toward literature skills (`literature-search-openalex`, `literature-search-europepmc`, `pubmed-database`). The Python CLI still uses only the local mock catalog.
+
+### Future extensions (out of demo scope)
+
+- **ClinVar, UniProt, AlphaFold**: Structural / protein evidence (not in this repo).
+- **Live GWAS Catalog API**: Replace or augment `traitgraph_mock_catalog_records.json`.
+- **Science Skill wrappers**: Route literature calls through managed skill entrypoints instead of inline fetch.
+
+---
+
+## Quick start — Python CLI
 
 ### Prerequisites
-- Python 3.6+
-- Zero external package dependencies (uses built-in standard library).
 
-### Environment Setup (Recommended)
+- **Python 3.10+** (stdlib only; no pip dependencies for the core pipeline)
+- Optional: [uv](https://github.com/astral-sh/uv) for virtualenv management
 
-To ensure consistent execution using **Python 3** and avoid any legacy system Python conflicts, you can set up a local virtual environment using **`uv`** with a custom terminal prompt display name:
+### Environment setup (recommended)
 
 ```bash
-# 1. Initialize the virtual environment with custom display prompt
+# Initialize virtualenv with a clear prompt name
 uv venv --prompt traitgraph
 
-# 2. Activate the virtual environment (macOS/Linux)
+# Activate (macOS/Linux)
 source .venv/bin/activate
-# On Windows:
-# .venv\Scripts\activate
 ```
 
-Once activated, your terminal prompt will display **`(traitgraph)`** to indicate the active environment, and your terminal's `python` alias will automatically point to your modern virtual environment's Python 3 engine.
+### Run the demo driver
 
-### 1. Run the Reconciliation Pipeline
+From the repository root:
 
-Execute the MVP driver wrapper script to run all four test and demo scenarios against the mock catalog:
-
-* **Using the activated `uv` virtual environment (or standard python3):**
-  ```bash
-  python3 .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
-  ```
-
-* **Or directly running with `uv run`:**
-  ```bash
-  uv run python3 .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
-  ```
-
-### 2. Expected Console Output
-
-On success, a gorgeous multi-scenario CLI dashboard will render, culminating in a comparison table and granular scenario drilldowns:
-
-```
-================================================================================
-        TRAITGRAPH GWAS RECONCILER - HACKATHON MVP DEMO DRIVER
-================================================================================
-[+] Loading mock curated GWAS Catalog records: traitgraph_mock_catalog_records.json
-
---------------------------------------------------------------------------------
-▶ RUNNING ORIGINAL MVP DEMO
-  Description : Childhood wheeze/asthma with probable study match and approximate grounding
-  Input Title : 'Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma'
-  Input Trait : 'childhood wheeze/asthma'
-  Input Auth  : ['Pividori M', 'Schoettler N', 'Nicolae DL']
---------------------------------------------------------------------------------
-[+] Output written to: outputs/traitgraph_reconciled_asthma_graph.json
-
---------------------------------------------------------------------------------
-▶ RUNNING SCENARIO 1: HIGH-CONFIDENCE MATCH
-  Description : Childhood asthma with identical title/authors/stats-file (100% study match)
-  Input Title : 'Shared and Distinct Genetic Risk Factors for Childhood Onset and Adult Onset Asthma: Genome- and Transcriptome-wide Studies'
-  Input Trait : 'childhood asthma'
-  Input Auth  : ['Pividori M.', 'Schoettler N.', 'Nicolae D. L.']
---------------------------------------------------------------------------------
-[+] Output written to: outputs/traitgraph_scenario_1_high_confidence.json
-
---------------------------------------------------------------------------------
-▶ RUNNING SCENARIO 2: AMBIGUOUS TRAIT MATCH
-  Description : wheeze/asthma/allergy mapping to multiple ontology concepts (triggers manual review)
-  Input Title : 'Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma'
-  Input Trait : 'wheeze/asthma/allergy'
-  Input Auth  : ['Pividori M', 'Schoettler N', 'Nicolae DL']
---------------------------------------------------------------------------------
-[+] Output written to: outputs/traitgraph_scenario_2_ambiguous_trait.json
-
---------------------------------------------------------------------------------
-▶ RUNNING SCENARIO 3: NO CONFIDENT CATALOG MATCH
-  Description : Similar title but completely different cohort/authors (shows system does not over-match)
-  Input Title : 'Genetic risk factors for childhood-onset and adult-onset asthma in a cohort of Latin American individuals'
-  Input Trait : 'asthma'
-  Input Auth  : ['Gomez A', 'Martinez B', 'Silva C']
---------------------------------------------------------------------------------
-[+] Output written to: outputs/traitgraph_scenario_3_no_match.json
-
-================================================================================
-                    FINAL MULTI-SCENARIO METRIC COMPARISON
-================================================================================
-╔══════════════════════════════════╤════════════════════════╤════════════════╤══════════╤════════╗
-║ Scenario                         │ Reported Trait         │ Matched Study  │ Confidence │ Review? ║
-╠══════════════════════════════════╪════════════════════════╪════════════════╪══════════╪════════╣
-║ ORIGINAL MVP DEMO                │ childhood wheeze/asthm │ GCST90001234 ( │ 57.69%   │ YES ⚠️ ║
-║ SCENARIO 1: HIGH-CONFIDENCE MATC │ childhood asthma       │ GCST90001234 ( │ 100.00%  │ YES ⚠️ ║
-║ SCENARIO 2: AMBIGUOUS TRAIT MATC │ wheeze/asthma/allergy  │ GCST90001234 ( │ 57.69%   │ YES ⚠️ ║
-║ SCENARIO 3: NO CONFIDENT CATALOG │ asthma                 │ NONE           │ 0.00%    │ YES ⚠️ ║
-╚══════════════════════════════════╧════════════════════════╧════════════════╧══════════╧════════╝
-
-================================================================================
-                       SCENARIO DRILLDOWN ANALYSIS
-================================================================================
-
-★ ORIGINAL MVP DEMO
-  • Reported Phenotype : 'childhood wheeze/asthma'
-  • Matched Accession  : GCST90001234 (PMID:31036433) (Confidence: 57.69%)
-  • Grounded Ontology  : MONDO:0005405 (APPROXIMATE)
-  • Manual Review Req. : YES ⚠️
-  • Trigger Reasons    :
-    - Study match is probable rather than exact (Confidence: 57.69%).
-    - Study match confidence score is low (< 70%).
-    - Reported trait contains slash '/' character indicating alternative or joint phenotypes.
-    - Grounding is approximate for combined wheeze/asthma phenotype.
-
-★ SCENARIO 1: HIGH-CONFIDENCE MATCH
-  • Reported Phenotype : 'childhood asthma'
-  • Matched Accession  : GCST90001234 (PMID:31036433) (Confidence: 100.00%)
-  • Grounded Ontology  : MONDO:0005405 (SYNONYM)
-  • Manual Review Req. : YES ⚠️
-  • Trigger Reasons    :
-    - Grounding is synonym-based (childhood asthma normalized to childhood onset asthma).
-
-★ SCENARIO 2: AMBIGUOUS TRAIT MATCH
-  • Reported Phenotype : 'wheeze/asthma/allergy'
-  • Matched Accession  : GCST90001234 (PMID:31036433) (Confidence: 57.69%)
-  • Grounded Ontology  : MONDO:0004979 | MONDO:0005405 | EFO:0003900 (AMBIGUOUS)
-  • Manual Review Req. : YES ⚠️
-  • Trigger Reasons    :
-    - Study match is probable rather than exact (Confidence: 57.69%).
-    - Study match confidence score is low (< 70%).
-    - Reported trait contains slash '/' character indicating alternative or joint phenotypes.
-    - Trait maps to multiple distinct concepts: 'wheeze' (approx. MONDO:0005405), 'asthma' (MONDO:0004979), and 'allergy' (EFO:0003900).
-    - Ambiguous combined phenotype requires curator decomposition into independent graph edges.
-
-★ SCENARIO 3: NO CONFIDENT CATALOG MATCH
-  • Reported Phenotype : 'asthma'
-  • Matched Accession  : NONE (Confidence: 0.00%)
-  • Grounded Ontology  : MONDO:0004979 (EXACT)
-  • Manual Review Req. : YES ⚠️
-  • Trigger Reasons    :
-    - No matching record found in mock catalog.
-
-================================================================================
-               MVP DEMO CONCLUDED SUCCESSFULLY WITH ALL SCENARIOS
-================================================================================
+```bash
+python3 .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
 ```
 
-### 3. Review the Exported Output Graph Files
+Or without activating the venv:
 
-The resulting Knowledge Graph payloads are saved under the `outputs/` directory:
-- `outputs/traitgraph_reconciled_asthma_graph.json` (Original MVP Demo payload)
-- `outputs/traitgraph_scenario_1_high_confidence.json` (Scenario 1 payload)
-- `outputs/traitgraph_scenario_2_ambiguous_trait.json` (Scenario 2 payload)
-- `outputs/traitgraph_scenario_3_no_match.json` (Scenario 3 payload)
+```bash
+uv run python3 .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
+```
 
-Each output file contains exact submitted metadata, catalog matching results, Jaccard similarities, normalized ontologies, complete provenance run ID/timestamp headers, and structured review flags for curation.
+The script reads scenario inputs from `examples/`, loads the mock catalog from `resources/`, and writes graph JSON to `outputs/`:
+
+| Scenario | Input (`examples/`) | Output (`outputs/`) |
+|----------|----------------------|---------------------|
+| Original MVP | `traitgraph_messy_asthma_prepub.json` | `traitgraph_reconciled_asthma_graph.json` |
+| High-confidence match | `traitgraph_scenario_1_high_confidence.json` | `traitgraph_scenario_1_high_confidence.json` |
+| Ambiguous trait | `traitgraph_scenario_2_ambiguous_trait.json` | `traitgraph_scenario_2_ambiguous_trait.json` |
+| No catalog match | `traitgraph_scenario_3_no_match.json` | `traitgraph_scenario_3_no_match.json` |
+
+On success, the terminal prints a multi-scenario comparison table and per-scenario drilldown (confidence, accession, ontology IDs, review reasons).
+
+Each output file includes submitted metadata, catalog match details, normalized ontologies, provenance headers, and structured `review_flags`.
 
 ---
 
-## Interactive Web Dashboard
+## Quick start — Web curation playground
 
-To make curating and auditing these study matches extremely visual and interactive, we've built a high-fidelity React-based curation dashboard under the `web/` folder. It runs entirely locally and imports the pre-generated output graph payloads dynamically!
+### Prerequisites
 
-### 1. Launch the Dashboard
-Navigate into the dashboard folder, install local dependencies, and launch the Vite development engine:
+- **Node.js 18+** and npm
+- Network access for live OpenAlex, Europe PMC, and OLS (browser calls; no API keys required)
+- Optional: **Gemini API key** for the biocurator report
+
+### Install and run
 
 ```bash
-# 1. Move to the web folder
 cd web
-
-# 2. Install dependencies (fully local and fast)
 npm install
-
-# 3. Spin up the Vite development server
 npm run dev
 ```
 
-### 2. View in the Browser
-Open your browser and navigate to:
-👉 **[http://localhost:5173/](http://localhost:5173/)**
+Open **[http://localhost:5173/](http://localhost:5173/)**.
 
-### 3. Key Dashboard Features
-* **Interactive Scenario Selector Tabs**: Toggle in real-time between the four classes of GWAS study matches (Original MVP, Scenario 1: High Confidence, Scenario 2: Ambiguous Trait, Scenario 3: No Catalog Match).
-* **Side-by-Side Metadata Auditing Cards**: Compares raw submitted pre-publication study titles, authors, and stats files against curated, validated catalog records.
-* **Matching & Grounding Gauges**: Visualizes study match confidence scores with color-coded confidence ranges, standard ontology tags (`MONDO:0005405`), and multi-concept indicators.
-* **Curator Review Banner Alerts**: Glowing yellow and red alerts that dynamically surface exact curation action reasons based on the generated review flags.
-* **Graph Node Evidentiary Record Preview**: Collapsible, high-contrast JSON code block displaying the graph-ready ingest payload with an integrated one-click "Copy JSON" utility.
+### Optional: Gemini API key
+
+Create `web/.env.local` (git-ignored) with:
+
+```bash
+VITE_GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+Restart the dev server after changing env vars. Without a key, deterministic reconciliation and live literature/OLS checks still work; only the Gemini biocurator layer is disabled.
+
+### Dashboard features
+
+- **Preset scenarios**: Four tabs backed by `examples/` JSON (same cases as the CLI).
+- **Editable metadata**: Title, trait, authors, stats file, cohort, and notes — reconciled on demand in the browser.
+- **Mock catalog matching**: Same Jaccard / author / filename logic as `src/traitgraph/reconcile.py`.
+- **Live literature verification**: OpenAlex work search and Europe PMC title search on each reconcile run.
+- **Trait grounding**: Local lookup for compound/ambiguous traits; live [OLS4](https://www.ebi.ac.uk/ols4/) search for simple traits when online.
+- **Curator review banners**: Surfaces `review_flags` reasons from the deterministic engine.
+- **Graph JSON preview**: Collapsible evidentiary payload with copy-to-clipboard.
+- **Gemini biocurator report**: Optional structured JSON insights appended as `ai_insights` (AI-suggested, not verified).
+
+Production build:
+
+```bash
+cd web && npm run build && npm run preview
+```
+
+---
+
+## Regenerating outputs
+
+After changing Python modules or example inputs:
+
+```bash
+python3 .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
+```
+
+The web app does not require regenerated `outputs/` files; it imports `examples/` and `resources/` directly at build time.
+
+---
+
+## Related documentation
+
+- [AGENTS.md](AGENTS.md) — Six-agent pipeline, evidence routing (`auto_merge` / `curator_review` / `do_not_merge`), and ingestion safety rules
+- [.agent/skills/traitgraph-gwas-reconciler/SKILL.md](.agent/skills/traitgraph-gwas-reconciler/SKILL.md) — Skill usage and workflow for agent tooling
