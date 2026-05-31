@@ -1361,7 +1361,7 @@ export default function App() {
                     compiledGraph.external_verification?.literature_evidence_verification?.evidence_status === 'supports_match' ? 'badge-exact' :
                     compiledGraph.external_verification?.literature_evidence_verification?.evidence_status === 'supports_review' ? 'badge-approximate' : 'badge-failed'
                   }`} style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
-                    {compiledGraph.external_verification?.literature_evidence_verification?.evidence_status?.replace('_', ' ') || 'unavailable'}
+{compiledGraph.external_verification?.literature_evidence_verification?.evidence_status?.replace(/_/g, ' ') || 'unavailable'}
                   </span>
                 </div>
 
