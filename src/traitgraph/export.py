@@ -116,7 +116,7 @@ def create_graph_ready_json(prepub_data, match_result, grounding_result):
     # Structure graph JSON
     graph_node = {
         "graph_schema_version": "1.0.0",
-        "entity_id": f"traitgraph-node-{uuid.uuid4()}",
+        "entity_id": f"prepubmatch-node-{uuid.uuid4()}",
         
         # Exact submitted metadata preserved
         "submitted_metadata": prepub_data,
@@ -143,7 +143,7 @@ def create_graph_ready_json(prepub_data, match_result, grounding_result):
         
         # Provenance record
         "provenance": {
-            "tool_name": "TraitGraph GWAS Reconciler MVP",
+            "tool_name": "GWAS PrePubMatch (Legacy Reconciler CLI)",
             "tool_version": "0.1.0",
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "run_id": str(uuid.uuid4())

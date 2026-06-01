@@ -60,7 +60,7 @@
         }
     },
     "provenance": {
-        "tool_name": "TraitGraph GWAS Reconciler MVP",
+        "tool_name": "GWAS PrePubMatch (Legacy Reconciler CLI)",
         "tool_version": "0.1.0",
         "timestamp": "2026-05-31T18:56:36.356651Z",
         "run_id": "5927521c-61da-4e8e-b447-75861d50a048"

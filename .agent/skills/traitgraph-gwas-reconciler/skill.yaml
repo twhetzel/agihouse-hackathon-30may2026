@@ -1,6 +1,6 @@
 id: traitgraph-gwas-reconciler
-name: TraitGraph GWAS Reconciler
-description: Reconciles messy pre-publication GWAS summary statistics metadata with published GWAS Catalog-style records, grounds reported traits with ontology lookup, and emits provenance-rich graph-ready JSON.
+name: GWAS PrePubMatch
+description: Connect pre-publication GWAS summary-stat submission metadata to published literature via Google Science Skills; returns ranked related publications and same-study assessment.
 version: 0.1.0
 entrypoint: scripts/reconcile_gwas.py
 inputs:

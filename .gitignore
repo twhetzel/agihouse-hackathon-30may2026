@@ -224,3 +224,6 @@ web/node_modules/
 web/dist/
 web/.vite/
 
+# Vendored Google Science Skills (run scripts/setup_science_skills.sh)
+.agent/skills/_vendor/
+

@@ -1,55 +1,52 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { generateBiocuratorReport } from './gemini';
-import { runLiveVerifications, groundTraitWithLiveApis } from './liveApis';
+import { discoverLiterature, checkDiscoveryHealth } from './discoverApi';
+import DiscoveryResults from './DiscoveryResults';
+import Tooltip from './Tooltip';
+import { THEMES, getStoredTheme, applyTheme } from './theme';
 
 // Import RAW inputs and resources
-import mockCatalog from '../../resources/traitgraph_mock_catalog_records.json';
 import originalPrepub from '../../examples/traitgraph_messy_asthma_prepub.json';
 import scenario1Prepub from '../../examples/traitgraph_scenario_1_high_confidence.json';
 import scenario2Prepub from '../../examples/traitgraph_scenario_2_ambiguous_trait.json';
 import scenario3Prepub from '../../examples/traitgraph_scenario_3_no_match.json';
+
+const METADATA_FIELDS_TOOLTIP = (
+  <>
+    <strong>Need at least one:</strong> title, reported trait, DOI, or GCST (in the GCST field or summary-stats filename).
+    <br /><br />
+    <strong>Optional:</strong> authors, cohort, notes — improve match scoring but are not required.
+    <br /><br />
+    <strong>Best results:</strong> title + authors; add trait for Catalog and PubMed coverage.
+  </>
+);
 
 // SCENARIO DEFINITIONS WITH RAW PREPUB INPUTS
 const presets = [
   {
     id: 'original',
     name: 'Probable Match',
-    desc: 'Childhood wheeze/asthma with probable study match & approximate grounding',
+    desc: 'Draft asthma GWAS submission — find the published paper behind this metadata',
     prepub: originalPrepub,
   },
   {
     id: 'scenario-1',
     name: 'High Confidence',
-    desc: 'Childhood asthma with identical title/authors/stats-file (100% study match)',
+    desc: 'Near-identical title/authors — should resolve to the Pividori asthma paper',
     prepub: scenario1Prepub,
   },
   {
     id: 'scenario-2',
     name: 'Ambiguous Trait',
-    desc: 'wheeze/asthma/allergy mapping to multiple ontology concepts',
+    desc: 'Same study clues but compound trait string (wheeze/asthma/allergy)',
     prepub: scenario2Prepub,
   },
   {
     id: 'scenario-3',
-    name: 'No Confident Match',
-    desc: 'Similar title but different cohort/authors (prevents over-matching)',
+    name: 'Different Cohort',
+    desc: 'Similar title, different authors — literature search should not over-match',
     prepub: scenario3Prepub,
   }
 ];
-
-function formatVerificationModeLabel(mode) {
-  if (mode === 'local_demo_fallback') return 'Demo';
-  if (mode === 'live') return 'Live';
-  if (mode === 'unavailable' || !mode) return 'Unavailable';
-  if (typeof mode === 'string') {
-    return mode.replace(/_/g, ' ');
-  }
-  return 'Unavailable';
-}
-
-// ==========================================
-// PURE JAVASCRIPT RECONCILIATION CORE ENGINE
-// ==========================================
 
 const STOPWORDS = new Set([
   "of", "in", "and", "the", "analysis", "study", "genome-wide",
@@ -317,122 +314,37 @@ function groundTraitLocally(reportedTrait) {
   };
 }
 
-function generateUUID(seed) {
-  let val = 0;
-  for (let i = 0; i < seed.length; i++) {
-    val += seed.charCodeAt(i);
-  }
-  return `traitgraph-node-7b02-${val}-adea-${val % 100}d56ade33495`;
-}
-
-function compileGraphReadyJson(prepubData, matchResult, groundingResult, seed = "demo", externalVerificationInput = null) {
-  const reviewReasons = [];
-  
-  const bestMatch = matchResult.best_match;
-  const confidenceScore = matchResult.confidence_score || 0.0;
-  const isExactStudy = matchResult.is_exact_match || false;
-  
-  if (!bestMatch) {
-    reviewReasons.push("No matching record found in mock catalog.");
-  } else if (!isExactStudy) {
-    reviewReasons.push(`Study match is probable rather than exact (Confidence: ${(confidenceScore * 100).toFixed(2)}%).`);
-    if (confidenceScore < 0.70) {
-      reviewReasons.push("Study match confidence score is low (< 70%).");
-    }
-  }
-  
-  const groundingReview = groundingResult.manual_review_required;
-  const groundingReasons = groundingResult.review_reasons || [];
-  
-  if (groundingReview || groundingReasons.length > 0) {
-    reviewReasons.push(...groundingReasons);
-  }
-  
-  const manualReviewRequired = (!bestMatch) || (!isExactStudy) || groundingReview || (confidenceScore < 0.70);
-  
-  // Deduplicate
-  const uniqueReasons = [...new Set(reviewReasons)];
-  
-  const externalVerification = externalVerificationInput || {
-    openalex_publication_verification: {
-      mode: "unavailable",
-      publication_match_status: "not_verified",
-      title_verified: false,
-      author_overlap_verified: false,
-      source: "OpenAlex API",
-      evidence_summary: "External verification not run.",
-    },
-    literature_evidence_verification: {
-      mode: "unavailable",
-      evidence_status: "does_not_support",
-      source: "Europe PMC REST API",
-      evidence_summary: "Literature verification not run.",
-      review_impact: "supports_curator_review",
-    },
-  };
-
-  return {
-    graph_schema_version: "1.0.0",
-    entity_id: generateUUID(prepubData.title || seed),
-    submitted_metadata: prepubData,
-    matched_catalog_record: bestMatch,
-    reconciliation: {
-      confidence_score: confidenceScore,
-      explanation: matchResult.explanation || "",
-      is_exact_match: isExactStudy,
-      scores: matchResult.scores
-    },
-    normalized_trait: {
-      ontology_id: groundingResult.ontology_id,
-      ontology_label: groundingResult.ontology_label,
-      grounding_type: groundingResult.grounding_type,
-      contains_multiple_concepts: groundingResult.contains_multiple_concepts,
-      grounding_source: groundingResult.grounding_source || "local_lookup",
-      ols_iri: groundingResult.ols_iri || null,
-    },
-    external_verification: externalVerification,
-    provenance: {
-      tool_name: "TraitGraph GWAS Reconciler MVP Live Engine",
-      tool_version: "0.1.0",
-      timestamp: new Date().toISOString().replace(/\.\d{3}/, ""),
-      run_id: generateUUID(prepubData.reported_trait || seed)
-    },
-    review_flags: {
-      manual_review_required: manualReviewRequired,
-      reasons: uniqueReasons
-    }
-  };
-}
-
-// Helper to run full calculations on inputs (local catalog + live OpenAlex / Europe PMC / OLS)
-async function runEngineCalculations(titleVal, traitVal, fileVal, authVal, cVal, pVal, nVal, seed) {
-  const currentPrepubData = {
+// Unified discovery via GWAS Catalog Solr + Science Skills literature search
+async function runEngineCalculations(titleVal, traitVal, fileVal, authVal, cVal, pVal, doiVal, nVal, seed) {
+  const submission = {
     source_type: "prepublication_summary_statistics_metadata",
     title: titleVal,
     authors: authVal.split(',').map(a => a.trim()).filter(Boolean),
     reported_trait: traitVal,
+    doi: doiVal,
     preprint_or_submission_id: pVal,
     summary_stats_file: fileVal,
     cohort: cVal,
     notes: nVal
   };
-  const [matchResult, groundingResult, externalVerification] = await Promise.all([
-    Promise.resolve(reconcilePrepubMetadata(currentPrepubData, mockCatalog)),
-    groundTraitWithLiveApis(traitVal, groundTraitLocally),
-    runLiveVerifications(currentPrepubData),
-  ]);
-  return compileGraphReadyJson(
-    currentPrepubData,
-    matchResult,
-    groundingResult,
-    seed,
-    externalVerification
-  );
+
+  const discoveryResult = await discoverLiterature(submission);
+  const groundingResult = groundTraitLocally(traitVal);
+
+  return {
+    ...discoveryResult,
+    submission,
+    trait_context: {
+      reported_trait: traitVal,
+      ontology_id: groundingResult.ontology_id,
+      ontology_label: groundingResult.ontology_label,
+      grounding_type: groundingResult.grounding_type,
+    },
+  };
 }
 
 export default function App() {
   const [selectedPresetId, setSelectedPresetId] = useState(presets[0].id);
-  const [copied, setCopied] = useState(false);
 
   // EDITABLE PREPUBLICATION METADATA STATE
   const [title, setTitle] = useState('');
@@ -441,6 +353,7 @@ export default function App() {
   const [summaryStatsFile, setSummaryStatsFile] = useState('');
   const [cohort, setCohort] = useState('');
   const [preprintId, setPreprintId] = useState('');
+  const [doi, setDoi] = useState('');
   const [notes, setNotes] = useState('');
 
   // ENGINE STATE FOR DEMO MODE
@@ -448,20 +361,9 @@ export default function App() {
   const [isReconciling, setIsReconciling] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
-  // GEMINI API CURATION STATES
-  const [apiKey, setApiKey] = useState(() => {
-    const envKey = import.meta.env.VITE_GEMINI_API_KEY || '';
-    if (envKey && envKey !== 'your_gemini_api_key_here') {
-      return envKey;
-    }
-    const saved = localStorage.getItem('traitgraph_gemini_api_key') || '';
-    return saved || '';
-  });
-
-  const [aiReport, setAiReport] = useState(null);
-  const [isAiRunning, setIsAiRunning] = useState(false);
-  const [aiError, setAiError] = useState(null);
   const [reconcileError, setReconcileError] = useState(null);
+  const [serverHealth, setServerHealth] = useState(null);
+  const [theme, setTheme] = useState(getStoredTheme);
 
   // TIMEOUT REF FOR RECONCILER PIPELINE
   const reconciliationTimeoutRef = useRef(null);
@@ -475,7 +377,13 @@ export default function App() {
     };
   }, []);
 
-  // Load preset metadata into input states AND immediately trigger a clean compile
+  useEffect(() => {
+    checkDiscoveryHealth()
+      .then(setServerHealth)
+      .catch(() => setServerHealth({ status: 'offline', science_skills_installed: false }));
+  }, []);
+
+  // Load preset metadata into input states AND immediately trigger discovery
   useEffect(() => {
     const preset = presets.find(p => p.id === selectedPresetId);
     if (preset && preset.prepub) {
@@ -485,11 +393,8 @@ export default function App() {
       setSummaryStatsFile(preset.prepub.summary_stats_file || '');
       setCohort(preset.prepub.cohort || '');
       setPreprintId(preset.prepub.preprint_or_submission_id || '');
+      setDoi(preset.prepub.doi || '');
       setNotes(preset.prepub.notes || '');
-
-      // Clear AI reports when presets change
-      setAiReport(null);
-      setAiError(null);
 
       setIsReconciling(true);
       setReconcileError(null);
@@ -500,6 +405,7 @@ export default function App() {
         (preset.prepub.authors || []).join(', '),
         preset.prepub.cohort || '',
         preset.prepub.preprint_or_submission_id || '',
+        preset.prepub.doi || '',
         preset.prepub.notes || '',
         selectedPresetId
       )
@@ -516,15 +422,10 @@ export default function App() {
   const handleInputChange = (fieldSetter, value) => {
     fieldSetter(value);
     setIsDirty(true);
-    // Clear AI reports when inputs are edited
-    setAiReport(null);
-    setAiError(null);
   };
 
   const handleRunReconciler = async () => {
     setIsReconciling(true);
-    setAiReport(null);
-    setAiError(null);
     setReconcileError(null);
 
     if (reconciliationTimeoutRef.current) {
@@ -540,6 +441,7 @@ export default function App() {
         authorsRaw,
         cohort,
         preprintId,
+        doi,
         notes,
         selectedPresetId
       );
@@ -552,108 +454,33 @@ export default function App() {
     }
   };
 
-  // EXECUTE LIVE GEMINI API BIOCURATOR REPORT (gemini-2.5-flash)
-  const handleExecuteAiReport = async () => {
-    if (!apiKey || apiKey === "your_gemini_api_key_here") {
-      setAiError("Missing Gemini API Key. Please set VITE_GEMINI_API_KEY inside the git-ignored web/.env.local file.");
-      return;
-    }
-    setIsAiRunning(true);
-    setAiError(null);
-
-    try {
-      const report = await generateBiocuratorReport({
-        apiKey,
-        inputMetadata: compiledGraph.submitted_metadata,
-        matchedRecord: compiledGraph.matched_catalog_record,
-        verification: compiledGraph,
-        localScores: compiledGraph.reconciliation?.scores || { title_similarity: 0, author_similarity: 0, file_similarity: 0 }
-      });
-
-      setAiReport(report);
-      
-      // Dynamic addition of ai_insights block to the displayed graph-ready JSON preview
-      const updatedGraph = {
-        ...compiledGraph,
-        ai_insights: report
-      };
-      setCompiledGraph(updatedGraph);
-
-    } catch (err) {
-      setAiError(err.message || String(err));
-    } finally {
-      setIsAiRunning(false);
-    }
-  };
-
-  const fallbackCopyText = (text) => {
-    try {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.top = "0";
-      textArea.style.left = "0";
-      textArea.style.position = "fixed";
-      textArea.style.opacity = "0";
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      const successful = document.execCommand('copy');
-      document.body.removeChild(textArea);
-      if (successful) {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } else {
-        console.error("Fallback copy command was unsuccessful");
-      }
-    } catch (err) {
-      console.error("Fallback copy failed: ", err);
-    }
-  };
-
-  const copyToClipboard = () => {
-    if (!compiledGraph) return;
-    const text = JSON.stringify(compiledGraph, null, 4);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text)
-        .then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        })
-        .catch((err) => {
-          console.error("Failed to copy text with Clipboard API: ", err);
-          fallbackCopyText(text);
-        });
-    } else {
-      fallbackCopyText(text);
-    }
-  };
-
-  const getGroundingBadgeClass = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'exact': return 'badge-exact';
-      case 'synonym': return 'badge-synonym';
-      case 'approximate': return 'badge-approximate';
-      case 'ambiguous': return 'badge-ambiguous';
-      default: return 'badge-failed';
-    }
-  };
-
   if (!compiledGraph) {
-    return <div style={{ padding: '3rem', color: '#fff', textAlign: 'center' }}>Initializing TraitGraph live runtime...</div>;
+    return <div style={{ padding: '3rem', color: 'var(--text-primary)', textAlign: 'center' }}>Initializing GWAS PrePubMatch…</div>;
   }
 
-  const { matched_catalog_record, reconciliation, normalized_trait, review_flags, provenance } = compiledGraph;
-  const confidenceScore = reconciliation?.confidence_score || 0;
-  const confidencePercent = `${(confidenceScore * 100).toFixed(1)}%`;
-  const isTraitAmbiguous = normalized_trait?.contains_multiple_concepts || normalized_trait?.grounding_type === 'ambiguous';
-  const openAlexMode = compiledGraph?.external_verification?.openalex_publication_verification?.mode || 'unavailable';
-  const litMode = compiledGraph?.external_verification?.literature_evidence_verification?.mode || 'unavailable';
-  const olsMode = compiledGraph?.normalized_trait?.grounding_source === 'ols_live' ? 'live' : 'local_lookup';
+  const {
+    related_results: relatedResults = [],
+    publication_results: publicationResults,
+    catalog_study_results: catalogStudyResults,
+    submission: graphSubmission,
+    discovery_summary: discoverySummary = {},
+    same_study_assessment: sameStudyAssessment = {},
+    identifier_resolution: identifierResolution = {},
+  } = compiledGraph;
+
+  const apiOnline = serverHealth?.status === 'ok' || serverHealth?.status === 'degraded';
+  const apiStatusLabel = serverHealth?.status === 'degraded' ? 'Degraded' : apiOnline ? 'Online' : 'Offline';
 
   const getConfidenceColor = (score) => {
     if (score >= 0.70) return 'var(--accent-success)';
     if (score >= 0.40) return 'var(--accent-warning)';
     return 'var(--accent-danger)';
+  };
+
+  const toggleTheme = () => {
+    const next = theme === THEMES.dark ? THEMES.light : THEMES.dark;
+    setTheme(next);
+    applyTheme(next);
   };
 
   return (
@@ -665,81 +492,52 @@ export default function App() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '2.2rem' }}>🧬</span>
-              <h1 className="glow-text" style={{ fontSize: '2.5rem', fontWeight: '800', background: 'linear-gradient(to right, #ffffff, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
-                TraitGraph
+              <h1 className="glow-text" style={{ fontSize: '2.5rem', fontWeight: '800', background: 'linear-gradient(to right, var(--heading-gradient-start), var(--heading-gradient-end))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+                GWAS PrePubMatch
               </h1>
               <span className="badge badge-auto" style={{ verticalAlign: 'middle', height: 'fit-content', fontSize: '0.75rem', padding: '0.3rem 0.75rem' }}>
-                LIVE API CURATION
+                UNIFIED DISCOVERY
               </span>
-              <span style={{ 
-                fontSize: '0.8rem', 
-                fontWeight: '600', 
-                color: '#a5b4fc', 
-                border: '1px solid rgba(129, 140, 248, 0.3)', 
-                background: 'rgba(129, 140, 248, 0.1)', 
-                padding: '0.25rem 0.65rem', 
-                borderRadius: '20px' 
-              }}>
-                GWAS Study Matcher + Evidence Verifier
-              </span>
-              {apiKey && apiKey !== "your_gemini_api_key_here" ? (
-                <span className="badge" style={{ verticalAlign: 'middle', height: 'fit-content', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-success)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>🧠 Gemini Active</span>
-              ) : (
-                <span className="badge" style={{ verticalAlign: 'middle', height: 'fit-content', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent-danger)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>🧠 Gemini Offline</span>
-              )}
-              
               <span className="badge" style={{ 
                 verticalAlign: 'middle', 
                 height: 'fit-content', 
-                background: openAlexMode === 'live' ? 'rgba(16, 185, 129, 0.1)' : openAlexMode === 'local_demo_fallback' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                color: openAlexMode === 'live' ? 'var(--accent-success)' : openAlexMode === 'local_demo_fallback' ? '#a5b4fc' : 'var(--accent-danger)',
-                border: openAlexMode === 'live' ? '1px solid rgba(16, 185, 129, 0.3)' : openAlexMode === 'local_demo_fallback' ? '1px solid rgba(129, 140, 248, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)'
+                background: apiOnline ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                color: apiOnline ? 'var(--accent-success)' : 'var(--accent-danger)',
+                border: apiOnline ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)'
               }}>
-                📚 OpenAlex: {formatVerificationModeLabel(openAlexMode)}
-              </span>
-
-              <span className="badge" style={{ 
-                verticalAlign: 'middle', 
-                height: 'fit-content', 
-                background: litMode === 'live' ? 'rgba(16, 185, 129, 0.1)' : litMode === 'local_demo_fallback' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                color: litMode === 'live' ? 'var(--accent-success)' : litMode === 'local_demo_fallback' ? '#a5b4fc' : 'var(--accent-danger)',
-                border: litMode === 'live' ? '1px solid rgba(16, 185, 129, 0.3)' : litMode === 'local_demo_fallback' ? '1px solid rgba(129, 140, 248, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)'
-              }}>
-                📖 Europe PMC: {formatVerificationModeLabel(litMode)}
-              </span>
-
-              <span className="badge" style={{ 
-                verticalAlign: 'middle', 
-                height: 'fit-content', 
-                background: olsMode === 'live' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
-                color: olsMode === 'live' ? 'var(--accent-success)' : '#a5b4fc',
-                border: olsMode === 'live' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(129, 140, 248, 0.3)'
-              }}>
-                🌿 OLS: {olsMode === 'live' ? 'Live' : 'Local'}
+                🔌 API: {apiStatusLabel}{serverHealth?.schema_version ? ` (v${serverHealth.schema_version})` : ''}
+                {serverHealth?.science_skills_installed ? ' · Skills' : serverHealth ? ' · HTTP fallback' : ''}
               </span>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', maxWidth: '850px', lineHeight: '1.5', marginBottom: '1rem' }}>
-              TraitGraph matches messy pre-publication GWAS metadata to curated catalog-style studies, grounds trait labels, verifies uncertainty, and exports provenance-rich evidence records.
+              Discover related GWAS Catalog studies — including pre-publication summary statistics — alongside published literature. One search across Catalog Solr, OpenAlex, Europe PMC, and PubMed with transparent match scoring.
             </p>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '15px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-primary)', fontWeight: '500' }}>
-                🔍 Study Matching
+              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '15px', background: 'var(--chip-bg)', border: '1px solid var(--chip-border)', color: 'var(--text-primary)', fontWeight: '500' }}>
+                🧬 GWAS Catalog Solr
               </span>
-              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '15px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-primary)', fontWeight: '500' }}>
-                🌿 Trait Grounding
+              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '15px', background: 'var(--chip-bg)', border: '1px solid var(--chip-border)', color: 'var(--text-primary)', fontWeight: '500' }}>
+                📚 literature-search-openalex
               </span>
-              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '15px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-primary)', fontWeight: '500' }}>
-                🛡️ Evidence Verification
+              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '15px', background: 'var(--chip-bg)', border: '1px solid var(--chip-border)', color: 'var(--text-primary)', fontWeight: '500' }}>
+                📖 literature-search-europepmc
+              </span>
+              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '15px', background: 'var(--chip-bg)', border: '1px solid var(--chip-border)', color: 'var(--text-primary)', fontWeight: '500' }}>
+                🧬 pubmed-database
               </span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', textAlign: 'center', minWidth: '180px', height: 'fit-content' }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Demo Catalog</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--accent-info)' }}>{mockCatalog.length} Local Records</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>Live GWAS Catalog integration planned.</div>
-            </div>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={toggleTheme}
+              aria-label={theme === THEMES.dark ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === THEMES.dark ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === THEMES.dark ? '☀️ Light' : '🌙 Dark'}
+            </button>
           </div>
         </div>
       </header>
@@ -772,7 +570,7 @@ export default function App() {
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                  <span style={{ fontSize: '0.95rem', fontWeight: '600', color: isActive ? '#a5b4fc' : 'var(--text-primary)' }}>
+                  <span style={{ fontSize: '0.95rem', fontWeight: '600', color: isActive ? 'var(--accent-active-text)' : 'var(--text-primary)' }}>
                     {sc.name}
                   </span>
                   <span className={`badge ${isActive ? 'badge-auto' : 'badge-failed'}`} style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem' }}>
@@ -790,78 +588,38 @@ export default function App() {
 
       {/* WORKFLOW PIPELINE STRIP */}
       <section style={{ marginBottom: '2.5rem' }}>
-        <div className="glass-panel" style={{ padding: '1.25rem', background: 'rgba(17, 24, 39, 0.45)' }}>
-          <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#a5b4fc', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>📋</span> TraitGraph Curation & Verification Pipeline
+        <div className="glass-panel" style={{ padding: '1.25rem', background: 'var(--panel-bg-subtle)' }}>
+          <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--link-accent)', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>📋</span> GWAS PrePubMatch Pipeline
           </h4>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', alignItems: 'start' }}>
-            
-            {/* Step 1: Triager */}
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+            <div style={{ background: 'var(--pipeline-step-bg)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--pipeline-step-border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <span style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#a5b4fc', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>1</span>
-                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Triager</strong>
+                <span style={{ background: 'rgba(99, 102, 241, 0.2)', color: 'var(--link-accent)', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>1</span>
+                <strong style={{ fontSize: '0.9rem', color: 'var(--heading-color)' }}>Submission Input</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Extracts study title, authors, reported trait, cohort, and summary-stat file clues.
+                Paste pre-publication GWAS submission metadata: title, authors, trait, file clues.
               </p>
             </div>
-
-            {/* Step 2: Literature + OpenAlex Verifier */}
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+            <div style={{ background: 'var(--pipeline-step-bg)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--pipeline-step-border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                 <span style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>2</span>
-                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Literature + OpenAlex Verifier</strong>
+                <strong style={{ fontSize: '0.9rem', color: 'var(--heading-color)' }}>GWAS Catalog + Literature Search</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Live OpenAlex + Europe PMC title/author verification on every reconcile run.
+                Parallel GWAS Catalog search and literature (OpenAlex, Europe PMC, PubMed via Science Skills when installed, direct HTTP fallback).
               </p>
             </div>
-
-            {/* Step 3: GWAS Matcher */}
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+            <div style={{ background: 'var(--pipeline-step-bg)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--pipeline-step-border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                 <span style={{ background: 'rgba(6, 182, 212, 0.2)', color: '#22d3ee', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>3</span>
-                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>GWAS Matcher</strong>
+                <strong style={{ fontSize: '0.9rem', color: 'var(--heading-color)' }}>Rank & Score</strong>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Compares title similarity, author overlap, trait similarity, and file clues.
+                Deduplicate by DOI/PMID; rank by title, authors, and trait; verify top match.
               </p>
             </div>
-
-            {/* Step 4: Trait Grounder */}
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>4</span>
-                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Trait Grounder</strong>
-              </div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Live OLS (EFO/MONDO) for simple traits; compound traits use local rules + Gemini.
-              </p>
-            </div>
-
-            {/* Step 5: Evidence Verifier */}
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <span style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>5</span>
-                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Evidence Verifier</strong>
-              </div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Combines confidence, grounding, and flags to decide auto-merge vs review.
-              </p>
-            </div>
-
-            {/* Step 6: Recording Clerk */}
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <span style={{ background: 'rgba(139, 92, 246, 0.2)', color: '#c084fc', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.75rem', fontWeight: '700' }}>6</span>
-                <strong style={{ fontSize: '0.9rem', color: '#fff' }}>Recording Clerk</strong>
-              </div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Emits graph-ready JSON with provenance, scores, flags, and optional AI insights.
-              </p>
-            </div>
-
           </div>
         </div>
       </section>
@@ -871,9 +629,17 @@ export default function App() {
         
         {/* LEFT COLUMN: INTERACTIVE PLAYGROUND EDITOR */}
         <div className="glass-panel" style={{ padding: '1.75rem', position: 'sticky', top: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
-            <span style={{ fontSize: '1.25rem' }}>✏️</span>
-            <h3 style={{ fontSize: '1.2rem', color: '#fff' }}>Interactive Curation Playground</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--divider)', paddingBottom: '0.75rem' }}>
+            <h3 style={{ fontSize: '1.2rem', color: 'var(--heading-color)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>✏️</span>
+              <span>GWAS Submission Metadata</span>
+              <Tooltip
+                content={METADATA_FIELDS_TOOLTIP}
+                placement="bottom"
+                variant="help-icon"
+                label="Which metadata fields are required"
+              />
+            </h3>
             {isDirty && (
               <span className="badge badge-review" style={{ fontSize: '0.65rem', marginLeft: 'auto', animation: 'pulseGlow 1.5s infinite ease-in-out' }}>
                 Pending Changes ⚡
@@ -886,7 +652,7 @@ export default function App() {
             {/* Study Title Field */}
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
-                Study Title (Jaccard Matcher Source)
+                Study Title
               </label>
               <textarea
                 value={title}
@@ -894,11 +660,11 @@ export default function App() {
                 style={{
                   width: '100%',
                   height: '75px',
-                  background: 'rgba(0,0,0,0.2)',
+                  background: 'var(--input-bg)',
                   border: '1px solid var(--border-glass)',
                   borderRadius: '6px',
                   padding: '0.6rem',
-                  color: '#fff',
+                  color: 'var(--input-text)',
                   fontSize: '0.95rem',
                   fontFamily: 'var(--font-sans)',
                   resize: 'none',
@@ -924,11 +690,11 @@ export default function App() {
                   onChange={(e) => handleInputChange(setReportedTrait, e.target.value)}
                   style={{
                     width: '100%',
-                    background: 'rgba(0,0,0,0.2)',
+                    background: 'var(--input-bg)',
                     border: '1px solid var(--border-glass)',
                     borderRadius: '6px',
                     padding: '0.6rem',
-                    color: '#fff',
+                    color: 'var(--input-text)',
                     fontSize: '0.95rem',
                     outline: 'none',
                     transition: 'var(--transition-smooth)'
@@ -953,11 +719,11 @@ export default function App() {
                   onChange={(e) => handleInputChange(setSummaryStatsFile, e.target.value)}
                   style={{
                     width: '100%',
-                    background: 'rgba(0,0,0,0.2)',
+                    background: 'var(--input-bg)',
                     border: '1px solid var(--border-glass)',
                     borderRadius: '6px',
                     padding: '0.6rem',
-                    color: '#cbd5e1',
+                    color: 'var(--input-text-muted)',
                     fontSize: '0.85rem',
                     fontFamily: 'var(--font-mono)',
                     outline: 'none',
@@ -985,11 +751,11 @@ export default function App() {
                 onChange={(e) => handleInputChange(setAuthorsRaw, e.target.value)}
                 style={{
                   width: '100%',
-                  background: 'rgba(0,0,0,0.2)',
+                  background: 'var(--input-bg)',
                   border: '1px solid var(--border-glass)',
                   borderRadius: '6px',
                   padding: '0.6rem',
-                  color: '#fff',
+                  color: 'var(--input-text)',
                   fontSize: '0.9rem',
                   outline: 'none',
                   transition: 'var(--transition-smooth)'
@@ -1008,7 +774,7 @@ export default function App() {
               {/* Submission ID Field */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
-                  preprint / submission ID
+                  GCST / submission ID
                 </label>
                 <input
                   type="text"
@@ -1016,45 +782,68 @@ export default function App() {
                   onChange={(e) => handleInputChange(setPreprintId, e.target.value)}
                   style={{
                     width: '100%',
-                    background: 'rgba(0,0,0,0.2)',
+                    background: 'var(--input-bg)',
                     border: '1px solid var(--border-glass)',
                     borderRadius: '6px',
                     padding: '0.6rem',
-                    color: '#fff',
+                    color: 'var(--input-text)',
                     fontSize: '0.9rem',
                     outline: 'none'
                   }}
+                  placeholder="e.g. GCST90001234"
                 />
               </div>
 
-              {/* Cohort Field */}
+              {/* DOI Field */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
-                  Cohort & Sample Details
+                  DOI
                 </label>
                 <input
                   type="text"
-                  value={cohort}
-                  onChange={(e) => handleInputChange(setCohort, e.target.value)}
+                  value={doi}
+                  onChange={(e) => handleInputChange(setDoi, e.target.value)}
                   style={{
                     width: '100%',
-                    background: 'rgba(0,0,0,0.2)',
+                    background: 'var(--input-bg)',
                     border: '1px solid var(--border-glass)',
                     borderRadius: '6px',
                     padding: '0.6rem',
-                    color: '#fff',
-                    fontSize: '0.9rem',
+                    color: 'var(--input-text-muted)',
+                    fontSize: '0.85rem',
+                    fontFamily: 'var(--font-mono)',
                     outline: 'none'
                   }}
+                  placeholder="10.1101/… or https://doi.org/…"
                 />
               </div>
+            </div>
 
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
+                Cohort & Sample Details
+              </label>
+              <input
+                type="text"
+                value={cohort}
+                onChange={(e) => handleInputChange(setCohort, e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--border-glass)',
+                  borderRadius: '6px',
+                  padding: '0.6rem',
+                  color: 'var(--input-text)',
+                  fontSize: '0.9rem',
+                  outline: 'none'
+                }}
+              />
             </div>
 
             {/* Notes Field */}
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
-                Curator Ingestion Notes
+                Submission Notes
               </label>
               <input
                 type="text"
@@ -1062,11 +851,11 @@ export default function App() {
                 onChange={(e) => handleInputChange(setNotes, e.target.value)}
                 style={{
                   width: '100%',
-                  background: 'rgba(0,0,0,0.2)',
+                  background: 'var(--input-bg)',
                   border: '1px solid var(--border-glass)',
                   borderRadius: '6px',
                   padding: '0.6rem',
-                  color: '#fff',
+                  color: 'var(--input-text)',
                   fontSize: '0.9rem',
                   outline: 'none'
                 }}
@@ -1084,8 +873,8 @@ export default function App() {
                 fontSize: '1.1rem',
                 fontWeight: '700',
                 cursor: 'pointer',
-                background: isDirty ? 'linear-gradient(135deg, #4f46e5, #06b6d4)' : 'rgba(255, 255, 255, 0.05)',
-                color: '#fff',
+                background: isDirty ? 'linear-gradient(135deg, #4f46e5, #06b6d4)' : 'var(--chip-bg)',
+                color: isDirty ? '#fff' : 'var(--text-primary)',
                 border: isDirty ? '1px solid var(--accent-info)' : '1px solid var(--border-glass)',
                 borderRadius: 'var(--radius-lg)',
                 boxShadow: isDirty ? '0 0 20px rgba(6, 182, 212, 0.4)' : 'none',
@@ -1107,590 +896,37 @@ export default function App() {
               {isReconciling ? (
                 <>
                   <svg style={{ animation: 'spin 1s linear infinite' }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
-                  Calling OpenAlex, Europe PMC, OLS…
+                  Searching GWAS Catalog + literature…
                 </>
               ) : (
                 <>
                   <span>⚡</span>
-                  Run Reconciliation Engine
+                  Discover Related Studies
                 </>
               )}
             </button>
 
             {reconcileError && (
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--accent-danger)' }}>
-                Reconciliation failed: {reconcileError}
+                Discovery failed: {reconcileError}
               </p>
             )}
 
           </form>
         </div>
 
-        {/* RIGHT COLUMN: LIVE RECONCILIATION & ONTOLOGY OUTPUTS */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative', minWidth: 0 }}>
-          
-          {/* BEAUTIFUL PROCESSING TRANSITION OVERLAY */}
-          {isReconciling && (
-            <div style={{
-              position: 'absolute',
-              top: 0, left: 0, right: 0, bottom: 0,
-              background: 'rgba(10, 13, 22, 0.85)',
-              backdropFilter: 'blur(8px)',
-              zIndex: 10,
-              borderRadius: 'var(--radius-lg)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '1rem',
-              border: '1px solid rgba(99, 102, 241, 0.2)',
-              boxShadow: '0 0 30px rgba(99, 102, 241, 0.1)'
-            }}>
-              <svg style={{ animation: 'spin 1.5s linear infinite' }} width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
-              <h3 className="glow-text" style={{ color: 'var(--accent-primary)', fontWeight: '700', fontSize: '1.3rem' }}>Processing Curation Pipeline</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>OpenAlex · Europe PMC · OLS · local catalog matcher…</p>
-            </div>
-          )}
-
-          {/* study reconciliation outcomes card */}
-          {/* TraitGraph Deterministic Verifier Card */}
-          <div className="glass-panel" style={{ padding: '1.75rem', background: 'rgba(17, 24, 39, 0.45)', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>🛡️</span>
-                <h3 style={{ fontSize: '1.2rem', color: '#fff', fontWeight: '700' }}>TraitGraph Deterministic Verifier</h3>
-              </div>
-              <span className="badge" style={{ 
-                background: confidenceScore >= 0.70 ? 'rgba(16, 185, 129, 0.1)' : confidenceScore >= 0.40 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                color: getConfidenceColor(confidenceScore),
-                border: `1px solid ${getConfidenceColor(confidenceScore)}`,
-                fontSize: '0.75rem',
-                padding: '0.25rem 0.65rem'
-              }}>
-                {confidenceScore >= 0.70 ? 'Verified' : confidenceScore >= 0.40 ? 'Probable' : 'Blocked'}
-              </span>
-            </div>
-
-            {/* Verification Fields Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-              
-              {/* Left Column: Study Matching Metrics */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#a5b4fc', letterSpacing: '0.05em', fontWeight: '700', marginBottom: '0.25rem' }}>Study Reconciliation</h4>
-                
-                {/* 1. Study Match Status */}
-                <div>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Study Match Status</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: matched_catalog_record ? (confidenceScore >= 0.70 ? 'var(--accent-success)' : 'var(--accent-warning)') : 'var(--accent-danger)' }}>
-                    {matched_catalog_record ? (confidenceScore >= 0.70 ? 'Verified (Exact Match) ✅' : 'Probable Match ⚠️') : 'No Confident Match ❌'}
-                  </span>
-                </div>
-
-                {/* 2. Study Match Confidence */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Study Match Confidence</span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: getConfidenceColor(confidenceScore) }}>{confidencePercent}</span>
-                  </div>
-                  <div style={{ width: '100%', height: '5px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: confidencePercent, height: '100%', background: getConfidenceColor(confidenceScore), transition: 'width 0.3s ease' }}></div>
-                  </div>
-                </div>
-
-                {/* 3. Title Similarity / Jaccard score */}
-                <div>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Title Similarity / Jaccard Score</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#fff' }}>
-                    {((reconciliation?.scores?.title_similarity ?? 0) * 100).toFixed(0)}%
-                  </span>
-                </div>
-
-                {/* 4. Author Overlap */}
-                <div>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Author Overlap</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#fff' }}>
-                    {((reconciliation?.scores?.author_similarity ?? 0) * 100).toFixed(0)}%
-                  </span>
-                </div>
-
-                {/* 5. File Match */}
-                <div>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>File Match</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#fff' }}>
-                    {reconciliation?.scores?.file_similarity === 1.0 ? 'Exact Match (1.0) ✅' : reconciliation?.scores?.file_similarity === 0.5 ? 'Partial Match (0.5) ⚠️' : 'No Match (0.0)'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Right Column: Trait Grounding & Pipeline Status */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#34d399', letterSpacing: '0.05em', fontWeight: '700', marginBottom: '0.25rem' }}>Trait & Pipeline Verification</h4>
-
-                {/* 6. Trait Grounding Status */}
-                <div>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Trait Grounding Status</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: normalized_trait?.grounding_type === 'exact' ? 'var(--accent-success)' : normalized_trait?.grounding_type === 'failed' ? 'var(--accent-danger)' : 'var(--accent-warning)' }}>
-                    {normalized_trait?.grounding_type === 'exact' && 'Exact Mapping (MONDO/EFO) ✅'}
-                    {normalized_trait?.grounding_type === 'synonym' && 'Synonym-based, review recommended ⚠️'}
-                    {normalized_trait?.grounding_type === 'approximate' && 'Approximate Mapping, review recommended ⚠️'}
-                    {normalized_trait?.grounding_type === 'ambiguous' && 'Ambiguous, review recommended ⚠️'}
-                    {normalized_trait?.grounding_type === 'failed' && 'Grounding failed, review required ❌'}
-                  </span>
-                  {normalized_trait?.ontology_label && (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                      Label: <strong>{normalized_trait.ontology_label}</strong> ({normalized_trait.ontology_id})
-                      {normalized_trait.grounding_source === 'ols_live' && (
-                        <span style={{ marginLeft: '0.35rem', color: 'var(--accent-success)' }}>· OLS live</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* 7. Provenance Completeness */}
-                <div>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Provenance Completeness</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: matched_catalog_record ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
-                    {matched_catalog_record ? 'Complete (Provenance-rich JSON ready) ✅' : 'Incomplete (Blocked Ingestion) ❌'}
-                  </span>
-                </div>
-
-                {/* 8. Manual Review Recommendation */}
-                <div>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Manual Review Recommendation</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: '700', color: review_flags?.manual_review_required ? 'var(--accent-warning)' : 'var(--accent-success)' }}>
-                    {review_flags?.manual_review_required ? 'Yes (Review Recommended) ⚠️' : 'No (Approved for Auto-Ingestion) ✅'}
-                  </span>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Explanation / Reconciled Details */}
-            {matched_catalog_record && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem' }}>
-                <div>
-                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Best Reconciled Study from Demo Catalog</span>
-                  <p style={{ fontSize: '0.85rem', marginTop: '0.15rem', color: '#fff', fontWeight: '600', lineHeight: '1.4' }}>
-                    "{matched_catalog_record.title}"
-                  </p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', marginTop: '0.1rem' }}>
-                    Catalog Accession: <strong>{matched_catalog_record.catalog_accession}</strong> | PMID: <strong>{matched_catalog_record.publication_id}</strong>
-                  </p>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Deterministic Rationale</span>
-                  <p style={{ marginTop: '0.15rem', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.65rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                    {reconciliation?.explanation}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* External Verification Layers Card */}
-          <div className="glass-panel" style={{ 
-            padding: '1.75rem', 
-            background: 'rgba(17, 24, 39, 0.45)', 
-            border: '1px solid rgba(129, 140, 248, 0.25)',
-            boxShadow: '0 0 20px rgba(129, 140, 248, 0.05)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>🌐</span>
-                <h3 style={{ fontSize: '1.2rem', color: '#fff', fontWeight: '700' }}>External Verification Layers</h3>
-              </div>
-              <span className="badge" style={{ 
-                background: 'rgba(129, 140, 248, 0.15)',
-                color: '#a5b4fc',
-                border: '1px solid rgba(129, 140, 248, 0.3)',
-                fontSize: '0.75rem',
-                padding: '0.25rem 0.65rem'
-              }}>
-                Multi-Agent Verification
-              </span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
-              {/* OpenAlex Publication Verifier */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.02)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#38bdf8', letterSpacing: '0.05em', fontWeight: '700', margin: 0 }}>
-                    OpenAlex Verifier
-                  </h4>
-                  <span className={`badge ${
-                    compiledGraph.external_verification?.openalex_publication_verification?.publication_match_status === 'verified' ? 'badge-exact' :
-                    compiledGraph.external_verification?.openalex_publication_verification?.publication_match_status === 'partially_verified' ? 'badge-approximate' : 'badge-failed'
-                  }`} style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
-                    {compiledGraph.external_verification?.openalex_publication_verification?.publication_match_status || 'unavailable'}
-                  </span>
-                </div>
-
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
-                  <div>Title Match: <strong>{compiledGraph.external_verification?.openalex_publication_verification?.title_verified ? "Verified ✓" : "Failed ✗"}</strong></div>
-                  <div>Author Overlap: <strong>{compiledGraph.external_verification?.openalex_publication_verification?.author_overlap_verified ? "Verified ✓" : "Failed ✗"}</strong></div>
-                  <div>Source: <span style={{ color: 'var(--text-muted)' }}>{compiledGraph.external_verification?.openalex_publication_verification?.source}</span></div>
-                  {compiledGraph.external_verification?.openalex_publication_verification?.openalex_url && (
-                    <div>
-                      <a
-                        href={compiledGraph.external_verification.openalex_publication_verification.openalex_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ color: '#38bdf8', fontSize: '0.75rem' }}
-                      >
-                        View on OpenAlex ↗
-                      </a>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
-                  <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600' }}>Evidence Summary</span>
-                  <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.75rem', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    {compiledGraph.external_verification?.openalex_publication_verification?.evidence_summary}
-                  </p>
-                </div>
-              </div>
-
-              {/* Literature Evidence Verifier */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.02)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#fbbf24', letterSpacing: '0.05em', fontWeight: '700', margin: 0 }}>
-                    Literature Evidence
-                  </h4>
-                  <span className={`badge ${
-                    compiledGraph.external_verification?.literature_evidence_verification?.evidence_status === 'supports_match' ? 'badge-exact' :
-                    compiledGraph.external_verification?.literature_evidence_verification?.evidence_status === 'supports_review' ? 'badge-approximate' : 'badge-failed'
-                  }`} style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
-{compiledGraph.external_verification?.literature_evidence_verification?.evidence_status?.replace(/_/g, ' ') || 'unavailable'}
-                  </span>
-                </div>
-
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
-                  <div>Review Impact: <strong style={{ 
-                    color: compiledGraph.external_verification?.literature_evidence_verification?.review_impact === 'supports_auto_merge' ? 'var(--accent-success)' :
-                           compiledGraph.external_verification?.literature_evidence_verification?.review_impact === 'supports_curator_review' ? 'var(--accent-warning)' : 'var(--accent-danger)'
-                  }}>{compiledGraph.external_verification?.literature_evidence_verification?.review_impact?.replace(/_/g, ' ')}</strong></div>
-                  <div>Source: <span style={{ color: 'var(--text-muted)' }}>{compiledGraph.external_verification?.literature_evidence_verification?.source}</span></div>
-                </div>
-
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
-                  <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600' }}>Evidence Summary</span>
-                  <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.75rem', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    {compiledGraph.external_verification?.literature_evidence_verification?.evidence_summary}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* review flags action card */}
-          <div className="glass-panel" style={{ 
-            padding: '1.25rem 1.5rem', 
-            borderLeft: review_flags?.manual_review_required ? '4px solid var(--accent-danger)' : '4px solid var(--accent-success)',
-            background: review_flags?.manual_review_required ? 'linear-gradient(to right, rgba(239, 68, 68, 0.04), transparent)' : 'linear-gradient(to right, rgba(16, 185, 129, 0.04), transparent)'
-          }}>
-            {review_flags?.manual_review_required ? (
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '1.1rem' }}>⚠️</span>
-                  <h4 style={{ color: 'var(--accent-danger)', fontWeight: '600', fontSize: '0.9rem' }}>Curation Alert [Manual Review Triggered]</h4>
-                </div>
-                <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingLeft: '1.2rem', color: '#fca5a5', fontSize: '0.8rem', lineHeight: '1.4' }}>
-                  {review_flags?.reasons?.map((reason, i) => (
-                    <li key={i}>• {reason}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '1.3rem', color: 'var(--accent-success)' }}>✅</span>
-                <div>
-                  <h4 style={{ color: 'var(--accent-success)', fontWeight: '600', fontSize: '0.9rem' }}>Ready for Automatic Ingestion</h4>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.15rem' }}>
-                    Study reconciliation match meets confidence and grounding is exact. No review reasons triggered.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-
-          {/* GEMINI AI BIOCURATOR CARD */}
-          <div className="glass-panel" style={{ 
-            padding: '1.75rem', 
-            border: '1px solid rgba(139, 92, 246, 0.3)',
-            boxShadow: '0 0 20px rgba(139, 92, 246, 0.1)',
-            background: 'linear-gradient(to bottom right, rgba(139, 92, 246, 0.03), transparent)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>🧠</span>
-                <h3 style={{ fontSize: '1.2rem', color: '#fff', fontWeight: '600' }}>
-                  {aiReport ? "Live Gemini Biocurator Report" : "Live Gemini Biocurator (Optional)"}
-                </h3>
-              </div>
-              <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', border: '1px solid rgba(139, 92, 246, 0.3)', fontSize: '0.7rem' }}>
-                gemini-2.5-flash
-              </span>
-            </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.4', marginBottom: '1.25rem' }}>
-              Uses Gemini to generate curator-style semantic reasoning and concept decomposition. Note: The deterministic verifier's confidence score remains the absolute source of truth. The Gemini Curation Layer provides optional, unverified AI concept suggestions.
-            </p>
-
-            {isTraitAmbiguous && (
-              <div style={{
-                background: 'rgba(139, 92, 246, 0.12)',
-                border: '1px solid rgba(139, 92, 246, 0.4)',
-                borderRadius: '8px',
-                padding: '0.75rem 1.25rem',
-                marginBottom: '1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                boxShadow: '0 0 15px rgba(139, 92, 246, 0.15)',
-                animation: 'pulseGlow 2s infinite ease-in-out'
-              }}>
-                <span style={{ fontSize: '1.5rem' }}>⚠️</span>
-                <div>
-                  <h5 style={{ color: '#c084fc', fontWeight: '700', fontSize: '0.85rem', margin: 0 }}>Ambiguous Compound Trait Detected!</h5>
-                  <p style={{ color: '#cbd5e1', fontSize: '0.75rem', margin: '0.2rem 0 0 0', lineHeight: '1.3' }}>
-                    The reported trait contains multiple phenotypes or alternative options. Executing the <strong>Live Gemini Biocurator Curation Layer</strong> is highly recommended to perform AI-assisted concept decomposition and semantic mapping.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {aiReport ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                
-                {/* Curator Recommendation */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', padding: '0.75rem 1rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>AI Curator Recommendation</span>
-                  <span className={`badge ${
-                    aiReport.curator_recommendation === 'auto_merge' ? 'badge-exact' :
-                    aiReport.curator_recommendation === 'curator_review' ? 'badge-approximate' : 'badge-review'
-                  }`} style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}>
-                    {aiReport.curator_recommendation?.replace(/_/g, ' ')}
-                  </span>
-                </div>
-
-                {/* Semantic Study Match Analysis */}
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em' }}>Semantic Study Match Analysis</span>
-                  <p style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.5', background: 'rgba(0, 0, 0, 0.2)', padding: '0.85rem', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.03)' }}>
-                    {aiReport.semantic_study_match_analysis}
-                  </p>
-                </div>
-
-                {/* Ontology Concept Decomposition */}
-                <div>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em', display: 'block', marginBottom: '0.5rem' }}>Ontology Concept Decomposition</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {aiReport.ontology_decomposition?.map((dec, i) => (
-                      <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '6px', padding: '0.75rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                          <span style={{ fontWeight: '600', color: '#fff', fontSize: '0.95rem' }}>"{dec.concept}"</span>
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            {dec.suggested_id && (
-                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--accent-info)', fontWeight: '600' }}>
-                                {dec.suggested_id}
-                              </span>
-                            )}
-                            <span className="badge badge-synonym" style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', background: 'rgba(59,130,246,0.1)' }}>
-                              {dec.suggestion_status}
-                            </span>
-                          </div>
-                        </div>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                          {dec.reasoning}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Uncertainty & Review Notes */}
-                {aiReport.uncertainty_notes && aiReport.uncertainty_notes.length > 0 && (
-                  <div>
-                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: '600', letterSpacing: '0.05em', display: 'block', marginBottom: '0.35rem' }}>Uncertainty & Review Notes</span>
-                    <ul style={{ paddingLeft: '1.2rem', color: '#fda4af', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', lineHeight: '1.4' }}>
-                      {aiReport.uncertainty_notes.map((note, i) => (
-                        <li key={i}>{note}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', padding: '1.5rem 0', textAlign: 'center' }}>
-                <span style={{ fontSize: '2.5rem' }}>🧠</span>
-                <div>
-                  <h4 style={{ fontWeight: '600', color: '#fff', marginBottom: '0.25rem' }}>AI Biocurator Analysis Layer</h4>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', maxWidth: '380px', lineHeight: '1.4' }}>
-                    Generate dynamic, AI-powered semantic validations and concept decompositions using Gemini 2.5 Flash.
-                  </p>
-                </div>
-                 {(!apiKey || apiKey === 'your_gemini_api_key_here') && (
-                  <div style={{
-                    width: '100%',
-                    maxWidth: '380px',
-                    background: 'rgba(255,255,255,0.01)',
-                    border: '1px solid rgba(139, 92, 246, 0.15)',
-                    borderRadius: '8px',
-                    padding: '1rem',
-                    textAlign: 'left',
-                    boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
-                  }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
-                      🔑 Enter Gemini API Key
-                    </label>
-                    <input
-                      type="password"
-                      value={apiKey === 'your_gemini_api_key_here' ? '' : apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="AIzaSy..."
-                      style={{
-                        width: '100%',
-                        background: 'rgba(0,0,0,0.3)',
-                        border: '1px solid var(--border-glass)',
-                        borderRadius: '6px',
-                        padding: '0.5rem 0.75rem',
-                        fontSize: '0.85rem',
-                        color: '#fff',
-                        outline: 'none',
-                        transition: 'border 0.2s'
-                      }}
-                    />
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: '0.5rem', lineHeight: '1.3' }}>
-                      Key will be kept in React state memory. To persist permanently, write it to the git-ignored <code style={{ color: 'var(--accent-info)' }}>web/.env.local</code> file!
-                    </p>
-                  </div>
-                )}
-
-                {aiError && (
-                  <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--accent-danger)', borderRadius: '6px', padding: '0.75rem 1rem', color: '#fca5a5', fontSize: '0.85rem', maxWidth: '420px', lineHeight: '1.4', textAlign: 'left' }}>
-                    ⚠️ {aiError}
-                  </div>
-                )}
-
-                <button
-                  onClick={handleExecuteAiReport}
-                  disabled={isAiRunning || isDirty || isReconciling}
-                  style={{
-                    padding: '0.75rem 1.5rem',
-                    fontSize: '0.95rem',
-                    fontWeight: '600',
-                    cursor: (isAiRunning || isDirty || isReconciling) ? 'not-allowed' : 'pointer',
-                    background: (isDirty || isReconciling) ? 'rgba(255,255,255,0.03)' : 'linear-gradient(135deg, #7c3aed, #db2777)',
-                    color: (isDirty || isReconciling) ? 'var(--text-muted)' : '#fff',
-                    border: (isDirty || isReconciling) ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(139,92,246,0.4)',
-                    borderRadius: 'var(--radius-md)',
-                    boxShadow: (isDirty || isReconciling) ? 'none' : '0 0 15px rgba(139, 92, 246, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    transition: 'var(--transition-smooth)',
-                    opacity: (isDirty || isReconciling) ? 0.5 : 1
-                  }}
-                >
-                  {isAiRunning ? (
-                    <>
-                      <svg style={{ animation: 'spin 1s linear infinite' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
-                      Gemini is reviewing study alignment...
-                    </>
-                  ) : isReconciling ? (
-                    <>
-                      <span>⏳</span>
-                      Waiting for Local Reconciliation...
-                    </>
-                  ) : isDirty ? (
-                    <>
-                      <span>⚠️</span>
-                      Reconciliation Outdated (Run Engine First)
-                    </>
-                  ) : (
-                    <>
-                      <span>🧠</span>
-                      Execute Live Gemini Biocurator Report
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* json payload output */}
-          <div className="glass-panel" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '1.25rem' }}>📁</span>
-                <h3 style={{ fontSize: '1.2rem', color: '#fff', marginRight: '0.5rem' }}>Graph Node Evidentiary Record Preview</h3>
-                {compiledGraph.ai_insights ? (
-                  <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', border: '1px solid rgba(139, 92, 246, 0.3)', fontSize: '0.65rem', textTransform: 'none', padding: '0.2rem 0.5rem' }}>
-                    ⚠️ Deterministic + AI Insights (AI-Generated & Unverified)
-                  </span>
-                ) : (
-                  <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-success)', border: '1px solid rgba(16, 185, 129, 0.3)', fontSize: '0.65rem', textTransform: 'none', padding: '0.2rem 0.5rem' }}>
-                    ✅ Deterministic Core Output
-                  </span>
-                )}
-              </div>
-              <button 
-                onClick={copyToClipboard}
-                style={{
-                  background: copied ? 'var(--accent-success)' : 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: copied ? '#fff' : 'var(--text-primary)',
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '4px',
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  transition: 'var(--transition-smooth)'
-                }}
-              >
-                {copied ? (
-                  <>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                    Copy JSON
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div style={{ flex: 1, position: 'relative', minWidth: 0, maxWidth: '100%' }}>
-              <pre style={{
-                maxHeight: '380px',
-                maxWidth: '100%',
-                minWidth: 0,
-                overflow: 'auto',
-                padding: '1rem',
-                background: 'rgba(0, 0, 0, 0.3)',
-                border: '1px solid rgba(255, 255, 255, 0.05)',
-                borderRadius: '6px',
-                fontSize: '0.8rem',
-                color: '#a7f3d0',
-                lineHeight: '1.5',
-                margin: 0
-              }}>
-                {JSON.stringify(compiledGraph, null, 4)}
-              </pre>
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              <span>Live Run UUID: {provenance?.run_id}</span>
-              <span>Timestamp: {provenance?.timestamp}</span>
-            </div>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0 }}>
+        <DiscoveryResults
+          isReconciling={isReconciling}
+          relatedResults={relatedResults}
+          publicationResults={publicationResults}
+          catalogStudyResults={catalogStudyResults}
+          submission={graphSubmission}
+          discoverySummary={discoverySummary}
+          sameStudyAssessment={sameStudyAssessment}
+          identifierResolution={identifierResolution}
+          getConfidenceColor={getConfidenceColor}
+        />
 
         </div>
 
@@ -1698,7 +934,7 @@ export default function App() {
 
       {/* FOOTER */}
       <footer style={{ marginTop: '4rem', borderTop: '1px solid var(--border-glass)', paddingTop: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-        TraitGraph • Live OpenAlex · Europe PMC · OLS · Gemini • Mock GWAS Catalog
+        GWAS PrePubMatch • Google Science Skills • OpenAlex · Europe PMC · PubMed
       </footer>
 
     </div>

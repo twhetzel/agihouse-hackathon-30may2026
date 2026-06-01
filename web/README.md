@@ -1,58 +1,100 @@
-# TraitGraph Curation Playground
+# GWAS PrePubMatch Dashboard
 
-React + Vite dashboard for interactive GWAS metadata reconciliation. It mirrors the Python deterministic engine in the browser, adds optional live verification (OpenAlex, Europe PMC, OLS), and supports an optional Gemini biocurator report.
+React + Vite UI for unified GWAS discovery. Paste pre-publication submission metadata (title, authors, trait, GCST/DOI clues) and get ranked **GWAS Catalog studies** (including pre-pub sumstats) and **publications** from OpenAlex, Europe PMC, and PubMed — with transparent match scoring.
 
-Project overview, architecture, and CLI usage: [../README.md](../README.md).
+The dashboard talks to the FastAPI orchestrator at `/api/*`; it does not call external APIs directly.
+
+---
 
 ## Prerequisites
 
-- Node.js 18+
-- Network access for live literature and OLS calls (no API keys required for those)
-- Optional: Gemini API key for the biocurator layer
-
-## Quick start
+Start the discovery API **before** the web dev server (from the repo root):
 
 ```bash
+# Recommended: install Google Science Skills for primary literature search
+bash scripts/setup_science_skills.sh
+
+# Optional: copy .env.example → .env for API keys / cache tuning
+cp .env.example .env
+
+bash scripts/run_server.sh
+```
+
+Verify the API: `curl -s http://127.0.0.1:8000/api/health | python3 -m json.tool`
+
+Full server setup, Docker, and API reference: [project README](../README.md).
+
+---
+
+## Development
+
+```bash
+cd web
 npm install
 npm run dev
 ```
 
-Open [http://localhost:5173/](http://localhost:5173/).
+Open **[http://localhost:5173/](http://localhost:5173/)**.
 
-### Optional: Gemini API key
+Vite proxies `/api` to `http://127.0.0.1:8000`, so no frontend env vars are required for local dev. The header badge shows API status (`Online` / `Degraded` / `Offline`), schema version, and whether Science Skills or HTTP fallback is in use.
 
-Create `.env.local` in this directory (git-ignored):
+### Other scripts
 
-```bash
-VITE_GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-Restart the dev server after changing env vars.
-
-## Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Development server with HMR |
-| `npm run build` | Production build to `dist/` |
-| `npm run preview` | Preview production build |
+| Command | Purpose |
+|---------|---------|
+| `npm run build` | Production static build → `dist/` |
+| `npm run preview` | Serve `dist/` locally (port 4173; add to `PREPUBMATCH_CORS_ORIGINS` if calling API cross-origin) |
 | `npm run lint` | ESLint |
 
-## How it loads data
+---
 
-Vite is configured to read files from the repo root (`vite.config.js` → `server.fs.allow`). The app imports:
+## Using the dashboard
 
-- `../examples/*.json` — preset pre-publication scenarios
-- `../resources/traitgraph_mock_catalog_records.json` — mock GWAS catalog
+1. **Load a scenario preset** — four examples from `examples/` fill the metadata form and **auto-run discovery**:
+   - **Probable Match** (default) — draft asthma GWAS submission
+   - **High Confidence** — near-identical Pividori asthma metadata
+   - **Ambiguous Trait** — compound trait string (wheeze/asthma/allergy)
+   - **Different Cohort** — similar title, different authors
 
-Regenerating `outputs/` via the Python CLI is not required for the web app.
+2. **Edit fields** — title, authors, reported trait, summary-stats filename, GCST, DOI, cohort, notes. At least one of title, trait, DOI, or GCST is needed for good results.
 
-## Key source files
+3. **Discover Related Studies** — click after editing (button highlights when there are pending changes). Preset selection runs discovery automatically; manual edits require this button.
 
-| File | Role |
-|------|------|
-| `src/App.jsx` | UI, in-browser reconciliation, presets, review flags |
-| `src/liveApis.js` | OpenAlex, Europe PMC, OLS live calls |
-| `src/gemini.js` | Optional Gemini 2.5 Flash biocurator report |
+4. **Review results** — unified ranked hits, top-match verification links (PubMed, GWAS Catalog, DOI), and supplementary pre-pub sumstats panel.
 
-Deterministic match scores and mock-catalog IDs remain the source of truth; live API and Gemini results are supplementary and labeled as unverified where applicable.
+**Client-side only:** the “Reported Trait (Ontology Grounder)” field runs a local MONDO/EFO demo mapper in the browser; match scores and discovery hits come from the API.
+
+---
+
+## Production (Docker)
+
+From the repo root:
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+| Service | URL |
+|---------|-----|
+| API | http://localhost:8000/api/health |
+| UI (nginx + `/api` proxy) | http://localhost:8080 |
+
+The `web` image is built with `Dockerfile.web`; nginx config is in `deploy/nginx.conf`.
+
+---
+
+## Project layout
+
+```
+web/
+├── src/
+│   ├── App.jsx              # Metadata form, presets, theme, discovery trigger
+│   ├── discoverApi.js       # /api/health and /api/discover client
+│   ├── DiscoveryResults.jsx # Ranked results, verification panel
+│   └── theme.js             # Light/dark theme (localStorage)
+├── vite.config.js           # Dev proxy /api → :8000; fs allow for examples/
+└── index.html
+```
+
+Example submission JSON lives in `../examples/` and is imported at build time.

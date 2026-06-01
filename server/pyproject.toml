@@ -1,0 +1,12 @@
+[project]
+name = "traitgraph-server"
+version = "0.4.0"
+description = "GWAS PrePubMatch unified discovery API (GWAS Catalog + literature HTTP)"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+]
+
+[project.scripts]
+traitgraph-server = "traitgraph_server.main:run"

@@ -14,13 +14,13 @@ try:
     from traitgraph.ontology_grounding import ground_trait_locally  # type: ignore
     from traitgraph.export import create_graph_ready_json  # type: ignore
 except ImportError as e:
-    print(f"Error importing TraitGraph modules. Python path is: {sys.path}")
+    print(f"Error importing GWAS PrePubMatch modules. Python path is: {sys.path}")
     print(f"Original error: {e}")
     sys.exit(1)
 
 def main():
     print("=" * 80)
-    print("        TRAITGRAPH GWAS RECONCILER - HACKATHON MVP DEMO DRIVER")
+    print("        GWAS PREPUBMATCH — LEGACY CATALOG RECONCILER DEMO")
     print("=" * 80)
     
     catalog_path = os.path.join(project_root, "resources", "traitgraph_mock_catalog_records.json")
