@@ -216,7 +216,7 @@ def _parse_pubmed_xml(xml_text: str) -> list[dict[str, Any]]:
         if medline is None:
             continue
         pmid_el = medline.find("PMID")
-        pmid = pmid_el.text if pmline_el is not None else None
+        pmid = pmid_el.text if pmid_el is not None else None
         art = medline.find("Article")
         if art is None:
             continue
