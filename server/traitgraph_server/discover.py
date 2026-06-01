@@ -566,7 +566,8 @@ def discover(submission: dict[str, Any]) -> dict[str, Any]:
                 if result:
                     anchor_sources.append("literature_doi")
 
-    assert catalog_bundle is not None
+    if catalog_bundle is None:
+        catalog_bundle = {"ok": False, "related_catalog_results": [], "queries_used": []}
 
     if not catalog_bundle.get("ok", True):
         degraded.append("gwas_catalog_solr")
