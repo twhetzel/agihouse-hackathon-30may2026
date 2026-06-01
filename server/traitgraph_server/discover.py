@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -15,6 +16,16 @@ from . import literature_search
 from . import scoring
 from .literature_search import SKILL_NAMES
 from .paths import skills_installed
+
+logger = logging.getLogger(__name__)
+
+# Optional anchor futures — failures are non-fatal and recorded in degraded_sources.
+_ANCHOR_FUTURE_KEYS = frozenset({"gcst", "doi_catalog", "doi_lit"})
+_DEGRADED_BY_ANCHOR_KEY = {
+    "gcst": "gwas_catalog_accession",
+    "doi_catalog": "gwas_catalog_doi",
+    "doi_lit": "literature_doi",
+}
 
 
 def _openalex_authors(work: dict) -> list[str]:
@@ -529,7 +540,15 @@ def discover(submission: dict[str, Any]) -> dict[str, Any]:
         lit_meta: dict[str, Any] = {}
 
         for future, key in futures.items():
-            result = future.result()
+            try:
+                result = future.result()
+            except Exception:
+                if key in _ANCHOR_FUTURE_KEYS:
+                    logger.exception("Optional anchor lookup failed (%s)", key)
+                    degraded.append(_DEGRADED_BY_ANCHOR_KEY[key])
+                    continue
+                raise
+
             if key == "catalog":
                 catalog_bundle = result
             elif key == "lit":
