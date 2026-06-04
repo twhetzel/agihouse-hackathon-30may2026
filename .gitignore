@@ -153,6 +153,7 @@ activemq-data/
 .env.*.local
 .envrc
 .venv
+.venv-slides/
 env/
 venv/
 ENV/
@@ -223,4 +224,7 @@ __marimo__/
 web/node_modules/
 web/dist/
 web/.vite/
+
+# Vendored Google Science Skills (run scripts/setup_science_skills.sh)
+.agent/skills/_vendor/
 

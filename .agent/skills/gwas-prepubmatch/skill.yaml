@@ -1,0 +1,13 @@
+id: gwas-prepubmatch
+name: GWAS PrePubMatch
+description: Connect pre-publication GWAS summary-stat submission metadata to published literature via Google Science Skills and GWAS Catalog Solr; returns ranked related studies and publications.
+version: 0.4.0
+inputs:
+  metadata:
+    type: object
+    description: Pre-publication GWAS metadata (title, authors, reported trait, optional cohort and file clues).
+    required: true
+outputs:
+  discover_response:
+    type: object
+    description: Unified discovery JSON from POST /api/discover (related_results, discovery_summary, provenance).
