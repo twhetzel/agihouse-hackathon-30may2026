@@ -48,7 +48,7 @@ cp .env.example .env
 
 ```bash
 bash scripts/run_server.sh
-# or: cd server && uv sync && uv run uvicorn traitgraph_server.main:app --port 8000
+# or: cd server && uv sync && uv run uvicorn gwas_prepubmatch_server.main:app --port 8000
 ```
 
 Verify: `curl -s http://127.0.0.1:8000/api/health | python3 -m json.tool`
@@ -148,10 +148,4 @@ The Docker image runs this script at build time. Without skills, discovery still
 
 ---
 
-## Legacy CLI Reconciler
-
-```bash
-python3 .agent/skills/traitgraph-gwas-reconciler/scripts/reconcile_gwas.py
-```
-
-See [AGENTS.md](AGENTS.md) for pipeline details.
+See [AGENTS.md](AGENTS.md) for pipeline details. Agent skill: `.agent/skills/gwas-prepubmatch/`.

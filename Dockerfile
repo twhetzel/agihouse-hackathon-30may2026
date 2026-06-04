@@ -13,7 +13,7 @@ WORKDIR /app/server
 RUN uv sync --frozen --no-dev
 
 WORKDIR /app
-COPY server/traitgraph_server ./server/traitgraph_server
+COPY server/gwas_prepubmatch_server ./server/gwas_prepubmatch_server
 COPY scripts/setup_science_skills.sh ./scripts/
 RUN bash scripts/setup_science_skills.sh
 
@@ -28,4 +28,4 @@ WORKDIR /app/server
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=8)"
 
-CMD ["uv", "run", "uvicorn", "traitgraph_server.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "gwas_prepubmatch_server.main:app", "--host", "0.0.0.0", "--port", "8000"]

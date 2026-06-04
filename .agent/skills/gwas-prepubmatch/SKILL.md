@@ -20,14 +20,14 @@ Use when the user asks to:
 ## Workflow
 
 1. Read submission metadata (title, authors, reported trait).
-2. Run `POST /api/discover` on the local GWAS PrePubMatch server (or `server/traitgraph_server/discover.py` directly).
+2. Run `POST /api/discover` on the local GWAS PrePubMatch server (or `server/gwas_prepubmatch_server/discover.py` directly).
 3. Review `discovery_summary`, `publication_results`, and `catalog_study_results` in the web UI or API JSON.
 
 ## Run
 
 ```bash
 # Terminal 1: API server
-cd server && uv run uvicorn traitgraph_server.main:app --port 8000
+cd server && uv run uvicorn gwas_prepubmatch_server.main:app --port 8000
 
 # Terminal 2: discover via curl
 curl -s -X POST http://127.0.0.1:8000/api/discover \

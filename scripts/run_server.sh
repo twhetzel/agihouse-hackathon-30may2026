@@ -15,6 +15,6 @@ export PREPUBMATCH_HOST="${PREPUBMATCH_HOST:-127.0.0.1}"
 export PREPUBMATCH_PORT="${PREPUBMATCH_PORT:-8000}"
 
 echo "Starting GWAS PrePubMatch API on ${PREPUBMATCH_HOST}:${PREPUBMATCH_PORT} ..."
-exec uv run uvicorn traitgraph_server.main:app \
+exec uv run uvicorn gwas_prepubmatch_server.main:app \
   --host "$PREPUBMATCH_HOST" \
   --port "$PREPUBMATCH_PORT"

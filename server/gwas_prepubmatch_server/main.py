@@ -106,7 +106,7 @@ def run() -> None:
     }
     if config.WORKERS > 1:
         kwargs["workers"] = config.WORKERS
-    uvicorn.run("traitgraph_server.main:app", **kwargs)
+    uvicorn.run("gwas_prepubmatch_server.main:app", **kwargs)
 
 
 if __name__ == "__main__":
